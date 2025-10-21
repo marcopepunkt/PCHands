@@ -1,0 +1,260 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+Code adapted from https://github.com/ZebraDevs/fetch_ros
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="fetch_gripper">
+    <xacro:macro name="fetch_model" params="mimic">
+        <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+        <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['fetch_gripper']}"/>
+        <!--  palm frame  -->
+        <link name="eef_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_calib_joint" type="fixed">
+            <parent link="eef_link"/>
+            <child link="eef_calib_link"/>
+            <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}" 
+                    rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+        </joint>
+        <link name="eef_calib_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_fixed_joint" type="fixed">
+            <parent link="eef_calib_link"/>
+            <child link="palm_base_link"/>
+            <origin xyz="0.032 0.0 0.0" rpy="0.0 0.0 0.0" />
+        </joint>
+        <link name="palm_base_link">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/gripper_link.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/gripper_link.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.3"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_forearm_fixed_joint" type="fixed">
+            <parent link="palm_base_link"/>
+            <child link="r_forearm"/>
+            <origin xyz="-0.154 0 0" rpy="0 0 0"/>
+        </joint>
+		<link name="r_forearm"/>
+
+        <!--  left finger  -->
+        <link name="l_gripper_finger_link">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/l_gripper_finger_link.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/l_gripper_finger_link.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_00l_gripper_finger_joint" type="prismatic">
+            <origin rpy="0 0 0" xyz="0 -0.1026 0"/>
+            <parent link="palm_base_link"/>
+            <child link="l_gripper_finger_link"/>
+            <axis xyz="0 1 0"/>
+            <limit effort="60" lower="0" upper="0.05" velocity="0.05"/>
+        </joint>
+
+        <!--  right finger  -->
+        <link name="r_gripper_finger_link">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/r_gripper_finger_link.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/r_gripper_finger_link.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_01r_gripper_finger_joint" type="prismatic">
+            <origin rpy="0 0 0" xyz="0 0.1026 0"/>
+            <parent link="palm_base_link"/>
+            <child link="r_gripper_finger_link"/>
+            <axis xyz="0 -1 0"/>
+            <limit effort="60" lower="0.0" upper="0.05" velocity="0.05"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_00l_gripper_finger_joint" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+    </xacro:macro>
+
+    <xacro:macro name="fetch_anchor">
+        <!--  anchor  -->
+        <link name="A_00"/>
+        <link name="A_01"/>
+        <link name="A_02"/>
+        <link name="A_03"/>
+        <link name="A_04"/>
+        <link name="A_05"/>
+        <link name="A_06"/>
+        <link name="A_07"/>
+        <link name="A_08"/>
+        <link name="A_09"/>
+        <link name="A_10"/>
+        <link name="A_11"/>
+        <link name="A_12"/>
+        <link name="A_13"/>
+        <link name="A_14"/>
+        <link name="A_15"/>
+        <link name="A_16"/>
+        <link name="A_17"/>
+        <link name="A_18"/>
+        <link name="A_19"/>
+        <link name="A_20"/>
+        <link name="A_21"/>
+
+        <!--  thumb  -->
+        <joint name="joint_A_00" type="fixed">
+            <child link="A_00"/>
+            <parent link="l_gripper_finger_link"/>
+            <origin xyz="-0.03 0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_01" type="fixed">
+            <child link="A_01"/>
+            <parent link="l_gripper_finger_link"/>
+            <origin xyz="-0.01 0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_02" type="fixed">
+            <child link="A_02"/>
+            <parent link="l_gripper_finger_link"/>
+            <origin xyz="0.010 0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_03" type="fixed">
+            <child link="A_03"/>
+            <parent link="l_gripper_finger_link"/>
+            <origin xyz="0.03 0.11 0" rpy="0 0 0"/>
+        </joint>
+
+        <!--  index  -->
+        <joint name="joint_A_04" type="fixed">
+            <child link="A_04"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.03 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_05" type="fixed">
+            <child link="A_05"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_06" type="fixed">
+            <child link="A_06"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_07" type="fixed">
+            <child link="A_07"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.03 -0.11 0" rpy="0 0 0"/>
+        </joint>
+        <!--  mid  -->
+        <joint name="joint_A_08" type="fixed">
+            <child link="A_08"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.03 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_09" type="fixed">
+            <child link="A_09"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_10" type="fixed">
+            <child link="A_10"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_11" type="fixed">
+            <child link="A_11"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.03 -0.11 0" rpy="0 0 0"/>
+        </joint>
+        <!--  ring  -->
+        <joint name="joint_A_12" type="fixed">
+            <child link="A_12"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.03 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_13" type="fixed">
+            <child link="A_13"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_14" type="fixed">
+            <child link="A_14"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_15" type="fixed">
+            <child link="A_15"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.03 -0.11 0" rpy="0 0 0"/>
+        </joint>
+        <!--  pink  -->
+        <joint name="joint_A_16" type="fixed">
+            <child link="A_16"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.03 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_17" type="fixed">
+            <child link="A_17"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="-0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_18" type="fixed">
+            <child link="A_18"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.01 -0.103 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_19" type="fixed">
+            <child link="A_19"/>
+            <parent link="r_gripper_finger_link"/>
+            <origin xyz="0.03 -0.11 0" rpy="0 0 0"/>
+        </joint>
+
+        <!--  palm  -->
+        <joint name="joint_A_20" type="fixed">
+            <child link="A_20"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="-0.032 0 0.03" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_21" type="fixed">
+            <child link="A_21"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="-0.032 0 -0.03" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

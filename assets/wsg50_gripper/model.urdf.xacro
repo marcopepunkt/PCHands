@@ -1,0 +1,301 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+Code adapted from https://github.com/ipa320/ipa325_wsg50 under MIT license
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="wsg50_gripper">
+    <xacro:macro name="wsg50_model" params="mimic">
+        <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+        <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['wsg50_gripper']}"/>
+        <!--  palm frame  -->
+        <link name="eef_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_calib_joint" type="fixed">
+            <parent link="eef_link"/>
+            <child link="eef_calib_link"/>
+            <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}" 
+                    rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+        </joint>
+        <link name="eef_calib_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_fixed_joint" type="fixed">
+            <parent link="eef_calib_link"/>
+            <child link="palm_base_link"/>
+            <origin xyz="-0.072 0.0 0.0" rpy="-1.5708 0.0 -1.5708"/>
+        </joint>
+        <link name="palm_base_link">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/WSG50_110.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/WSG50_110.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.2"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_forearm_fixed_joint" type="fixed">
+            <parent link="palm_base_link"/>
+            <child link="r_forearm"/>
+            <origin xyz="0 0 0" rpy="0 -1.5708 0"/>
+        </joint>
+		<link name="r_forearm"/>
+
+        <joint name="r_01gripper_left" type="prismatic">
+            <parent link="palm_base_link"/>
+            <child link="gripper_left"/>
+            <axis xyz="-1 0 0"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <limit lower="0" upper="0.055" effort="1.0" velocity="1.0"/>
+        </joint>
+        <link name="gripper_left">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/GUIDE_WSG50_110.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/GUIDE_WSG50_110.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="guide_joint_finger_left" type="fixed">
+            <origin xyz="0 0 0.023" rpy="0 0 0"/>
+            <parent link="gripper_left"/>
+            <child link="finger_left"/>
+        </joint>
+        <link name="finger_left">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/WSG-FMF.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/WSG-FMF.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+
+        <joint name="r_02gripper_right" type="prismatic">
+            <origin xyz="0 0 0" rpy="0 0 3.14159"/>
+            <parent link="palm_base_link"/>
+            <child link="gripper_right"/>
+            <axis xyz="-1 0 0"/>
+            <limit lower="0" upper="0.055" effort="1.0" velocity="1.0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_01gripper_left" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="gripper_right">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/GUIDE_WSG50_110.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/GUIDE_WSG50_110.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="guide_joint_finger_right" type="fixed">
+            <origin xyz="0 0 0.023" rpy="0 0 0"/>
+            <parent link="gripper_right"/>
+            <child link="finger_right"/>
+        </joint>
+        <link name="finger_right">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/WSG-FMF.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/WSG-FMF.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+    </xacro:macro>
+
+    <xacro:macro name="wsg50_anchor">
+        <!--  anchor  -->
+        <link name="A_00"/>
+        <link name="A_01"/>
+        <link name="A_02"/>
+        <link name="A_03"/>
+        <link name="A_04"/>
+        <link name="A_05"/>
+        <link name="A_06"/>
+        <link name="A_07"/>
+        <link name="A_08"/>
+        <link name="A_09"/>
+        <link name="A_10"/>
+        <link name="A_11"/>
+        <link name="A_12"/>
+        <link name="A_13"/>
+        <link name="A_14"/>
+        <link name="A_15"/>
+        <link name="A_16"/>
+        <link name="A_17"/>
+        <link name="A_18"/>
+        <link name="A_19"/>
+        <link name="A_20"/>
+        <link name="A_21"/>
+        <!--  thumb  -->
+        <joint name="joint_A_00" type="fixed">
+            <child link="A_00"/>
+            <parent link="finger_left"/>
+            <origin xyz="0 0 0.065" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_01" type="fixed">
+            <child link="A_01"/>
+            <parent link="finger_left"/>
+            <origin xyz="0 0 0.095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_02" type="fixed">
+            <child link="A_02"/>
+            <parent link="finger_left"/>
+            <origin xyz="0.003 0 0.120" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_03" type="fixed">
+            <child link="A_03"/>
+            <parent link="finger_left"/>
+            <origin xyz="0 0 0.131" rpy="0 0 0"/>
+        </joint>
+
+        <!--  index  -->
+        <joint name="joint_A_04" type="fixed">
+            <child link="A_04"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.065" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_05" type="fixed">
+            <child link="A_05"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_06" type="fixed">
+            <child link="A_06"/>
+            <parent link="finger_right"/>
+            <origin xyz="0.003 0 0.120" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_07" type="fixed">
+            <child link="A_07"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.131" rpy="0 0 0"/>
+        </joint>
+        <!--  mid  -->
+        <joint name="joint_A_08" type="fixed">
+            <child link="A_08"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.065" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_09" type="fixed">
+            <child link="A_09"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_10" type="fixed">
+            <child link="A_10"/>
+            <parent link="finger_right"/>
+            <origin xyz="0.003 0 0.120" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_11" type="fixed">
+            <child link="A_11"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.131" rpy="0 0 0"/>
+        </joint>
+        <!--  ring  -->
+        <joint name="joint_A_12" type="fixed">
+            <child link="A_12"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.065" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_13" type="fixed">
+            <child link="A_13"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_14" type="fixed">
+            <child link="A_14"/>
+            <parent link="finger_right"/>
+            <origin xyz="0.003 0 0.120" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_15" type="fixed">
+            <child link="A_15"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.131" rpy="0 0 0"/>
+        </joint>
+        <!--  pink  -->
+        <joint name="joint_A_16" type="fixed">
+            <child link="A_16"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.065" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_17" type="fixed">
+            <child link="A_17"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_18" type="fixed">
+            <child link="A_18"/>
+            <parent link="finger_right"/>
+            <origin xyz="0.003 0 0.120" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_19" type="fixed">
+            <child link="A_19"/>
+            <parent link="finger_right"/>
+            <origin xyz="0 0 0.131" rpy="0 0 0"/>
+        </joint>
+
+        <!--  palm  -->
+        <joint name="joint_A_20" type="fixed">
+            <child link="A_20"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0 -0.025 0.072" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_21" type="fixed">
+            <child link="A_21"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0 0.025 0.072" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

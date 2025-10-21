@@ -1,0 +1,12 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="franka_gripper">
+
+    <xacro:include filename="model.urdf.xacro"/>
+    <xacro:franka_model mimic="true"/>
+    <xacro:franka_anchor/>
+
+    <klampt use_vis_geom="1" freeze_root_link="1"/>
+</robot>

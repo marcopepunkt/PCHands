@@ -1,0 +1,95 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="kinova_2f">
+    <!--  free root joints  -->
+    <link name="root0">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <link name="root1">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <link name="root2">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <link name="root3">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <link name="root4">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <link name="root5">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <mass value="0.0001"/>
+            <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+        </inertial>
+    </link>
+    <joint name="x_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root0"/>
+        <child link="root1"/>
+        <axis xyz="1 0 0"/>
+        <limit lower="-3." upper="3." velocity="0" effort="0"/>
+    </joint>
+    <joint name="y_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root1"/>
+        <child link="root2"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-3" upper="3" velocity="0" effort="0"/>
+    </joint>
+    <joint name="z_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root2"/>
+        <child link="root3"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-3" upper="3" velocity="0" effort="0"/>
+    </joint>
+    <joint name="x_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root3"/>
+        <child link="root4"/>
+        <axis xyz="1 0 0"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+    <joint name="y_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root4"/>
+        <child link="root5"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+    <joint name="z_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root5"/>
+        <child link="eef_link"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+
+    <xacro:include filename="model.urdf.xacro"/>
+    <xacro:kinova_model/>
+    <xacro:kinova_anchor/>
+</robot>

@@ -1,0 +1,683 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+Code adapted from https://github.com/simlabrobotics/allegro_hand_ros
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="allegro_hand_right">
+    <xacro:macro name="allegro_model">
+        <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+        <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['allegro_hand_right']}"/>
+        <!--  palm frame  -->
+        <link name="eef_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_calib_joint" type="fixed">
+            <parent link="eef_link"/>
+            <child link="eef_calib_link"/>
+            <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}" 
+                    rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+        </joint>
+        <link name="eef_calib_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_fixed_joint" type="fixed">
+            <parent link="eef_calib_link"/>
+            <child link="palm_base_link"/>
+            <origin xyz="0.012 -0.028 0.0" rpy="1.5708 0.0 0.7854"/>
+        </joint>
+        <link name="palm_base_link">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/r_palm.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/r_palm.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.1"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_forearm_fixed_joint" type="fixed">
+            <parent link="palm_base_link"/>
+            <child link="r_forearm"/>
+            <origin xyz="-0.007 0 -0.095" rpy="0 -1.5708 0"/>
+        </joint>
+		<link name="r_forearm"/>
+
+        <!--  thumb  -->
+        <joint name="r_00thumb1" type="revolute">
+            <axis xyz="-1 0 0"/>
+            <limit effort="0" lower="0.263" upper="1.396" velocity="0"/>
+            <parent link="palm_base_link"/>
+            <child link="r_thumb1"/>
+            <origin rpy="0 -1.65806278845 -1.5707963259" xyz="-0.0182 0.019333 -0.045987"/>
+        </joint>
+        <link name="r_thumb1">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/r_thumb1.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/r_thumb1.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_01thumb2" type="revolute">
+            <axis xyz="0 0 1"/>
+            <limit effort="0" lower="-0.105" upper="1.163" velocity="0"/>
+            <parent link="r_thumb1"/>
+            <child link="r_thumb2"/>
+            <origin xyz="-0.027 0.005 0.0399"/>
+        </joint>
+        <link name="r_thumb2">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumb2.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumb2.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_02thumb3" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.189" upper="1.644" velocity="0"/>
+            <parent link="r_thumb2"/>
+            <child link="r_thumb3"/>
+            <origin xyz="0 0 0.0177"/>
+        </joint>
+        <link name="r_thumb3">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumb3.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumb3.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_03thumb4" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.162" upper="1.719" velocity="0"/>
+            <parent link="r_thumb3"/>
+            <child link="r_thumb4"/>
+            <origin xyz="0 0 0.0514"/>
+        </joint>
+        <link name="r_thumb4">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumb4.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumb4.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_thumbtip_fixed" type="fixed">
+            <parent link="r_thumb4"/>
+            <child link="r_thumbtip"/>
+            <origin rpy="0 0 0" xyz="0 0 0.0423"/>
+        </joint>
+        <link name="r_thumbtip">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumbtip.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumbtip.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.01"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+
+        <!--  index  -->
+        <joint name="r_04index1" type="revolute">
+            <axis xyz="0 0 1"/>
+            <limit effort="0" lower="-0.47" upper="0.47" velocity="0"/>
+            <parent link="palm_base_link"/>
+            <child link="r_index1"/>
+            <origin rpy="-0.08726646255 0 0" xyz="0 0.0435 -0.001542"/>
+        </joint>
+        <link name="r_index1">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger1.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger1.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_05index2" type="revolute">
+            <limit effort="0" lower="-0.196" upper="1.61" velocity="0"/>
+            <axis xyz="0 1 0"/>
+            <parent link="r_index1"/>
+            <child link="r_index2"/>
+            <origin xyz="0 0 0.0164"/>
+        </joint>
+        <link name="r_index2">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger2.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger2.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_06index3" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.174" upper="1.709" velocity="0"/>
+            <parent link="r_index2"/>
+            <child link="r_index3"/>
+            <origin xyz="0 0 0.054"/>
+        </joint>
+        <link name="r_index3">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger3.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger3.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_07index4" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.227" upper="1.618" velocity="0"/>
+            <parent link="r_index3"/>
+            <child link="r_index4"/>
+            <origin xyz="0 0 0.0384"/>
+        </joint>
+        <link name="r_index4">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger4.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger4.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_indextip_fixed" type="fixed">
+            <parent link="r_index4"/>
+            <child link="r_indextip"/>
+            <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+        </joint>
+        <link name="r_indextip">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+
+        <!--  middle  -->
+        <joint name="r_08middle1" type="revolute">
+            <axis xyz="0 0 1"/>
+            <limit effort="0" lower="-0.47" upper="0.47" velocity="0"/>
+            <parent link="palm_base_link"/>
+            <child link="r_middle1"/>
+            <origin rpy="0.0 0 0" xyz="0 0 0.0007"/>
+        </joint>
+        <link name="r_middle1">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger1.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger1.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_09middle2" type="revolute">
+            <limit effort="0" lower="-0.196" upper="1.61" velocity="0"/>
+            <axis xyz="0 1 0"/>
+            <parent link="r_middle1"/>
+            <child link="r_middle2"/>
+            <origin xyz="0 0 0.0164"/>
+        </joint>
+        <link name="r_middle2">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger2.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger2.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_10middle3" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.174" upper="1.709" velocity="0"/>
+            <parent link="r_middle2"/>
+            <child link="r_middle3"/>
+            <origin xyz="0 0 0.054"/>
+        </joint>
+        <link name="r_middle3">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger3.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger3.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_11middle4" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.227" upper="1.618" velocity="0"/>
+            <parent link="r_middle3"/>
+            <child link="r_middle4"/>
+            <origin xyz="0 0 0.0384"/>
+        </joint>
+        <link name="r_middle4">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger4.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger4.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_middletip_fixed" type="fixed">
+            <parent link="r_middle4"/>
+            <child link="r_middletip"/>
+            <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+        </joint>
+        <link name="r_middletip">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.01"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+
+        <!--  rinkie  -->
+        <joint name="r_12rinkie1" type="revolute">
+            <axis xyz="0 0 1"/>
+            <limit effort="0" lower="-0.47" upper="0.47" velocity="0"/>
+            <parent link="palm_base_link"/>
+            <child link="r_rinkie1"/>
+            <origin rpy="0.08726646255 0 0" xyz="0 -0.0435 -0.001542"/>
+        </joint>
+        <link name="r_rinkie1">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger1.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger1.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_13rinkie2" type="revolute">
+            <limit effort="0" lower="-0.196" upper="1.61" velocity="0"/>
+            <axis xyz="0 1 0"/>
+            <parent link="r_rinkie1"/>
+            <child link="r_rinkie2"/>
+            <origin xyz="0 0 0.0164"/>
+        </joint>
+        <link name="r_rinkie2">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger2.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger2.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_14rinkie3" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.174" upper="1.709" velocity="0"/>
+            <parent link="r_rinkie2"/>
+            <child link="r_rinkie3"/>
+            <origin xyz="0 0 0.054"/>
+        </joint>
+        <link name="r_rinkie3">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger3.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger3.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_15rinkie4" type="revolute">
+            <axis xyz="0 1 0"/>
+            <limit effort="0" lower="-0.227" upper="1.618" velocity="0"/>
+            <parent link="r_rinkie3"/>
+            <child link="r_rinkie4"/>
+            <origin xyz="0 0 0.0384"/>
+        </joint>
+        <link name="r_rinkie4">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/finger4.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/finger4.obj"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.02"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+        <joint name="r_rinkietip_fixed" type="fixed">
+            <parent link="r_rinkie4"/>
+            <child link="r_rinkietip"/>
+            <origin rpy="0 0 0" xyz="0 0 0.0267"/>
+        </joint>
+        <link name="r_rinkietip">
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/fingertip.stl"/>
+                </geometry>
+            </collision>
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.01"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+        </link>
+    </xacro:macro>
+
+    <xacro:macro name="allegro_anchor">
+        <!--  anchor  -->
+        <link name="A_00"/>
+        <link name="A_01"/>
+        <link name="A_02"/>
+        <link name="A_03"/>
+        <link name="A_04"/>
+        <link name="A_05"/>
+        <link name="A_06"/>
+        <link name="A_07"/>
+        <link name="A_08"/>
+        <link name="A_09"/>
+        <link name="A_10"/>
+        <link name="A_11"/>
+        <link name="A_12"/>
+        <link name="A_13"/>
+        <link name="A_14"/>
+        <link name="A_15"/>
+        <link name="A_16"/>
+        <link name="A_17"/>
+        <link name="A_18"/>
+        <link name="A_19"/>
+        <link name="A_20"/>
+        <link name="A_21"/>
+
+        <!--  thumb  -->
+        <joint name="joint_A_00" type="fixed">
+            <child link="A_00"/>
+            <parent link="r_thumb2"/>
+            <origin xyz="0.01 0 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_01" type="fixed">
+            <child link="A_01"/>
+            <parent link="r_thumb3"/>
+            <origin xyz="0.01 0 0.02" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_02" type="fixed">
+            <child link="A_02"/>
+            <parent link="r_thumbtip"/>
+            <origin xyz="0.012 0 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_03" type="fixed">
+            <child link="A_03"/>
+            <parent link="r_thumbtip"/>
+            <origin xyz="0 0 0.012" rpy="0 0 0"/>
+        </joint>
+        <!--  index  -->
+        <joint name="joint_A_04" type="fixed">
+            <child link="A_04"/>
+            <parent link="r_index2"/>
+            <origin xyz="0.01 0 0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_05" type="fixed">
+            <child link="A_05"/>
+            <parent link="r_index2"/>
+            <origin xyz="0.01 0 0.05" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_06" type="fixed">
+            <child link="A_06"/>
+            <parent link="r_indextip"/>
+            <origin xyz="0.012 0 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_07" type="fixed">
+            <child link="A_07"/>
+            <parent link="r_indextip"/>
+            <origin xyz="0 0 0.012" rpy="0 0 0"/>
+        </joint>
+        <!--  mid  -->
+        <joint name="joint_A_08" type="fixed">
+            <child link="A_08"/>
+            <parent link="r_middle2"/>
+            <origin xyz="0.01 0 0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_09" type="fixed">
+            <child link="A_09"/>
+            <parent link="r_middle2"/>
+            <origin xyz="0.01 0 0.05" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_10" type="fixed">
+            <child link="A_10"/>
+            <parent link="r_middletip"/>
+            <origin xyz="0.012 0 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_11" type="fixed">
+            <child link="A_11"/>
+            <parent link="r_middletip"/>
+            <origin xyz="0 0 0.012" rpy="0 0 0"/>
+        </joint>
+        <!--  ring  -->
+        <joint name="joint_A_12" type="fixed">
+            <child link="A_12"/>
+            <parent link="r_rinkie2"/>
+            <origin xyz="0.01 0 0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_13" type="fixed">
+            <child link="A_13"/>
+            <parent link="r_rinkie2"/>
+            <origin xyz="0.01 0 0.05" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_14" type="fixed">
+            <child link="A_14"/>
+            <parent link="r_rinkietip"/>
+            <origin xyz="0.012 0 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_15" type="fixed">
+            <child link="A_15"/>
+            <parent link="r_rinkietip"/>
+            <origin xyz="0 0 0.012" rpy="0 0 0"/>
+        </joint>
+        <!--  pinkie  -->
+        <joint name="joint_A_16" type="fixed">
+            <child link="A_16"/>
+            <parent link="r_rinkie2"/>
+            <origin xyz="0.01 0 0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_17" type="fixed">
+            <child link="A_17"/>
+            <parent link="r_rinkie2"/>
+            <origin xyz="0.01 0 0.05" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_18" type="fixed">
+            <child link="A_18"/>
+            <parent link="r_rinkietip"/>
+            <origin xyz="0.012 0 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_19" type="fixed">
+            <child link="A_19"/>
+            <parent link="r_rinkietip"/>
+            <origin xyz="0 0 0.012" rpy="0 0 0"/>
+        </joint>
+        <!--  palm  -->
+        <joint name="joint_A_20" type="fixed">
+            <child link="A_20"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0.0115 0.045 -0.027" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_21" type="fixed">
+            <child link="A_21"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0.0115 -0.045 -0.027" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

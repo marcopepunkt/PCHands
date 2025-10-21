@@ -1,0 +1,3 @@
+[submodule "arhand"]
+	path = arhand
+	url = https://github.com/enyen/arhand.git

@@ -1,0 +1,12 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="wsg50_gripper">
+
+    <xacro:include filename="model.urdf.xacro"/>
+    <xacro:wsg50_model mimic="true"/>
+    <xacro:wsg50_anchor/>
+
+    <klampt use_vis_geom="1" freeze_root_link="1"/>
+</robot>

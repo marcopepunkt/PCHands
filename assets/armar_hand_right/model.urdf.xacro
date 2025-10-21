@@ -1,0 +1,590 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="armar_hand_right">
+    <xacro:macro name="armar_model" params="mimic">
+        <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+        <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['armar_hand_right']}"/>
+        <!--  palm frame  -->
+        <link name="eef_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_calib_joint" type="fixed">
+            <parent link="eef_link"/>
+            <child link="eef_calib_link"/>
+            <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}"
+                    rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+        </joint>
+        <link name="eef_calib_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_fixed_joint" type="fixed">
+            <parent link="eef_calib_link"/>
+            <child link="palm_base_link"/>
+            <origin xyz="-0.088 0.067 0.01" rpy="3.1416 0.0 -0.7845"/>
+        </joint>
+        <link name="palm_base_link">
+            <inertial>
+                <mass value="0.3"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/palm_r.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/palm_r_.stl"/>
+                </geometry>
+            </collision>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/palm_r__.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_forearm_fixed_joint" type="fixed">
+            <parent link="palm_base_link"/>
+            <child link="r_forearm"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+        <link name="r_forearm"/>
+
+        <!--  thumb finger  -->
+        <joint name="r_000thumb0" type="revolute">
+            <parent link="palm_base_link"/>
+            <child link="r_thumb0"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="2.91903 -1.18743 -2.93505" xyz="0.08111 -0.04691 -0.03950"/>
+            <axis xyz="1 0 0"/>
+        </joint>
+        <link name="r_thumb0">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumb_prox.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumb_prox_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_001thumb1" type="revolute">
+            <parent link="r_thumb0"/>
+            <child link="r_thumb1"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="-0.00002 -0.04408 -0.00005"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_000thumb0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_thumb1">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/thumb_dist.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/thumb_dist_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!--  index finger  -->
+        <joint name="r_0100index0" type="revolute">
+            <parent link="palm_base_link"/>
+            <child link="r_index0"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="1.57081 1.48348 -3.14158" xyz="0.14531 0.00000 -0.03922"/>
+            <axis xyz="1 0 0"/>
+        </joint>
+        <link name="r_index0">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/index_prox.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/index_prox_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0101index1" type="revolute">
+            <parent link="r_index0"/>
+            <child link="r_index1"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.05595 -0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_index1">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/index_inter.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/index_inter_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0102index2" type="revolute">
+            <parent link="r_index1"/>
+            <child link="r_index2"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.03197 -0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_index2">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/index_dist.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/index_dist_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!--  middle finger  -->
+        <joint name="r_0103middle0" type="revolute">
+            <parent link="palm_base_link"/>
+            <child link="r_middle0"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0.00000 1.57080 -4.71239" xyz="0.15172 0.00000 -0.00750"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_middle0">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/middle_prox.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/middle_prox_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0104middle1" type="revolute">
+            <parent link="r_middle0"/>
+            <child link="r_middle1"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.06000 0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_middle1">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/middle_inter.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/middle_inter_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0105middle2" type="revolute">
+            <parent link="r_middle1"/>
+            <child link="r_middle2"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.03900 0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_middle2">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/middle_dist.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/middle_dist_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!--  ring finger  -->
+        <joint name="r_0106ring0" type="revolute">
+            <parent link="palm_base_link"/>
+            <child link="r_ring0"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="-1.57080 1.39616 0.00000" xyz="0.14652 0.00000 0.02630"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_ring0">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/ring_prox.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/ring_prox_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0107ring1" type="revolute">
+            <parent link="r_ring0"/>
+            <child link="r_ring1"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.05506 0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_ring1">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/ring_inter.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/ring_inter_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0108ring2" type="revolute">
+            <parent link="r_ring1"/>
+            <child link="r_ring2"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="-0.00000 -0.03704 0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_ring2">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/ring_dist.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <origin rpy="1.57080 -0.00000 -3.14159" xyz="0 0 0"/>
+                <geometry>
+                    <mesh filename="mesh/ring_dist_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+
+        <!--  pinkie finger  -->
+        <joint name="r_0109pinkie0" type="revolute">
+            <parent link="palm_base_link"/>
+            <child link="r_pinkie0"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="-1.57080 1.16969 0.00000" xyz="0.13032 0.00000 0.05530"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_pinkie0">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/pinkie_prox.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/pinkie_prox_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0110pinkie1" type="revolute">
+            <parent link="r_pinkie0"/>
+            <child link="r_pinkie1"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.04610 0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_pinkie1">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/pinkie_inter.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/pinkie_inter_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+        <joint name="r_0111pinkie2" type="revolute">
+            <parent link="r_pinkie1"/>
+            <child link="r_pinkie2"/>
+            <limit effort="100" lower="0" upper="1.57" velocity="3.1415"/>
+            <dynamics damping="1.0" friction="0.0001"/>
+            <origin rpy="0 0 0" xyz="0.00000 -0.02706 -0.00000"/>
+            <axis xyz="1 0 0"/>
+            <xacro:if value="${mimic}">
+                <mimic joint="r_0100index0" multiplier="1" offset="0"/>
+            </xacro:if>
+        </joint>
+        <link name="r_pinkie2">
+            <inertial>
+                <mass value="0.05"/>
+                <inertia ixx="1e-3" ixy="0" ixz="0" iyy="1e-3" iyz="0" izz="1e-3"/>
+            </inertial>
+            <visual>
+                <geometry>
+                    <mesh filename="mesh/pinkie_dist.stl"/>
+                </geometry>
+            </visual>
+            <collision>
+                <geometry>
+                    <mesh filename="mesh/pinkie_dist_.stl"/>
+                </geometry>
+            </collision>
+        </link>
+    </xacro:macro>
+
+    <xacro:macro name="armar_anchor">
+        <!--  anchor  -->
+        <link name="A_00"/>
+        <link name="A_01"/>
+        <link name="A_02"/>
+        <link name="A_03"/>
+        <link name="A_04"/>
+        <link name="A_05"/>
+        <link name="A_06"/>
+        <link name="A_07"/>
+        <link name="A_08"/>
+        <link name="A_09"/>
+        <link name="A_10"/>
+        <link name="A_11"/>
+        <link name="A_12"/>
+        <link name="A_13"/>
+        <link name="A_14"/>
+        <link name="A_15"/>
+        <link name="A_16"/>
+        <link name="A_17"/>
+        <link name="A_18"/>
+        <link name="A_19"/>
+        <link name="A_20"/>
+        <link name="A_21"/>
+        <!--  thumb  -->
+        <joint name="joint_A_00" type="fixed">
+            <child link="A_00"/>
+            <parent link="r_thumb0"/>
+            <origin xyz="0 0 -0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_01" type="fixed">
+            <child link="A_01"/>
+            <parent link="r_thumb0"/>
+            <origin xyz="0 -0.025 -0.012" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_02" type="fixed">
+            <child link="A_02"/>
+            <parent link="r_thumb1"/>
+            <origin xyz="0 -0.02 -0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_03" type="fixed">
+            <child link="A_03"/>
+            <parent link="r_thumb1"/>
+            <origin xyz="0 -0.045 0.003" rpy="0 0 0"/>
+        </joint>
+
+        <!--  index  -->
+        <joint name="joint_A_04" type="fixed">
+            <child link="A_04"/>
+            <parent link="r_index0"/>
+            <origin xyz="0 -0.028 -0.0105" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_05" type="fixed">
+            <child link="A_05"/>
+            <parent link="r_index1"/>
+            <origin xyz="0 -0.0165 -0.0095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_06" type="fixed">
+            <child link="A_06"/>
+            <parent link="r_index2"/>
+            <origin xyz="0 -0.01 -0.0085" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_07" type="fixed">
+            <child link="A_07"/>
+            <parent link="r_index2"/>
+            <origin xyz="0 -0.027 0.003" rpy="0 0 0"/>
+        </joint>
+        <!--  mid  -->
+        <joint name="joint_A_08" type="fixed">
+            <child link="A_08"/>
+            <parent link="r_middle0"/>
+            <origin xyz="0 -0.028 -0.0105" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_09" type="fixed">
+            <child link="A_09"/>
+            <parent link="r_middle1"/>
+            <origin xyz="0 -0.02 -0.0095" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_10" type="fixed">
+            <child link="A_10"/>
+            <parent link="r_middle2"/>
+            <origin xyz="0 -0.01 -0.0085" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_11" type="fixed">
+            <child link="A_11"/>
+            <parent link="r_middle2"/>
+            <origin xyz="0 -0.03 0.003" rpy="0 0 0"/>
+        </joint>
+        <!--  ring  -->
+        <joint name="joint_A_12" type="fixed">
+            <child link="A_12"/>
+            <parent link="r_ring0"/>
+            <origin xyz="0 -0.028 -0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_13" type="fixed">
+            <child link="A_13"/>
+            <parent link="r_ring1"/>
+            <origin xyz="0 -0.019 -0.009" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_14" type="fixed">
+            <child link="A_14"/>
+            <parent link="r_ring2"/>
+            <origin xyz="0 -0.01 -0.008" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_15" type="fixed">
+            <child link="A_15"/>
+            <parent link="r_ring2"/>
+            <origin xyz="0 -0.03 0.003" rpy="0 0 0"/>
+        </joint>
+        <!--  pink  -->
+        <joint name="joint_A_16" type="fixed">
+            <child link="A_16"/>
+            <parent link="r_pinkie0"/>
+            <origin xyz="0 -0.022 -0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_17" type="fixed">
+            <child link="A_17"/>
+            <parent link="r_pinkie1"/>
+            <origin xyz="0 -0.014 -0.009" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_18" type="fixed">
+            <child link="A_18"/>
+            <parent link="r_pinkie2"/>
+            <origin xyz="0 -0.01 -0.008" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_19" type="fixed">
+            <child link="A_19"/>
+            <parent link="r_pinkie2"/>
+            <origin xyz="0 -0.026 0.003" rpy="0 0 0"/>
+        </joint>
+
+        <!--  palm  -->
+        <joint name="joint_A_20" type="fixed">
+            <child link="A_20"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0.11 -0.017 -0.035" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_21" type="fixed">
+            <child link="A_21"/>
+            <parent link="palm_base_link"/>
+            <origin xyz="0.102 -0.014 0.045" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

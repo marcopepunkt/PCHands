@@ -1,0 +1,65 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="wsg50_gripper">
+    <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+    <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['wsg50_gripper']}"/>
+
+    <link name="root0"/>
+    <link name="root1"/>
+    <link name="root2"/>
+    <link name="root3"/>
+    <link name="root4"/>
+    <link name="root5"/>
+    <joint name="x_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root0"/>
+        <child link="root1"/>
+        <axis xyz="1 0 0"/>
+        <limit lower="-3." upper="3." velocity="0" effort="0"/>
+    </joint>
+    <joint name="y_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root1"/>
+        <child link="root2"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-3" upper="3" velocity="0" effort="0"/>
+    </joint>
+    <joint name="z_joint" type="prismatic">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root2"/>
+        <child link="root3"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-3" upper="3" velocity="0" effort="0"/>
+    </joint>
+    <joint name="x_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root3"/>
+        <child link="root4"/>
+        <axis xyz="1 0 0"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+    <joint name="y_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root4"/>
+        <child link="root5"/>
+        <axis xyz="0 1 0"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+    <joint name="z_rotation_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <parent link="root5"/>
+        <child link="eef_link"/>
+        <axis xyz="0 0 1"/>
+        <limit lower="-9" upper="9" velocity="0" effort="0"/>
+    </joint>
+    <link name="eef_link"/>
+    <joint name="r_eef_calib_joint" type="fixed">
+        <parent link="eef_link"/>
+        <child link="eef_calib_link"/>
+        <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}"
+                rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+    </joint>
+    <link name="eef_calib_link"/>
+</robot>

@@ -1,0 +1,35 @@
+<!--
+SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<?xml version="1.0" ?>
+<robot name="robotiq_2f85">
+  <disable_collisions link1="root3" link2="root4" reason="Adjacent"/>
+  <disable_collisions link1="root1" link2="root2" reason="Adjacent"/>
+  <disable_collisions link1="root0" link2="root1" reason="Adjacent"/>
+  <disable_collisions link1="root5" link2="eef_link" reason="Adjacent"/>
+  <disable_collisions link1="eef_link" link2="eef_calib_link" reason="Adjacent"/>
+  <disable_collisions link1="root2" link2="root3" reason="Adjacent"/>
+  <disable_collisions link1="root4" link2="root5" reason="Adjacent"/>
+  <disable_collisions link1="root0" link2="root2" reason="Never"/>
+  <disable_collisions link1="root0" link2="root3" reason="Never"/>
+  <disable_collisions link1="root0" link2="root4" reason="Never"/>
+  <disable_collisions link1="root0" link2="root5" reason="Never"/>
+  <disable_collisions link1="root0" link2="eef_link" reason="Never"/>
+  <disable_collisions link1="root0" link2="eef_calib_link" reason="Never"/>
+  <disable_collisions link1="root1" link2="root3" reason="Never"/>
+  <disable_collisions link1="root1" link2="root4" reason="Never"/>
+  <disable_collisions link1="root1" link2="root5" reason="Never"/>
+  <disable_collisions link1="root1" link2="eef_link" reason="Never"/>
+  <disable_collisions link1="root1" link2="eef_calib_link" reason="Never"/>
+  <disable_collisions link1="root2" link2="root4" reason="Never"/>
+  <disable_collisions link1="root2" link2="root5" reason="Never"/>
+  <disable_collisions link1="root2" link2="eef_link" reason="Never"/>
+  <disable_collisions link1="root2" link2="eef_calib_link" reason="Never"/>
+  <disable_collisions link1="root3" link2="root5" reason="Never"/>
+  <disable_collisions link1="root3" link2="eef_link" reason="Never"/>
+  <disable_collisions link1="root3" link2="eef_calib_link" reason="Never"/>
+  <disable_collisions link1="root4" link2="eef_link" reason="Never"/>
+  <disable_collisions link1="root4" link2="eef_calib_link" reason="Never"/>
+  <disable_collisions link1="root5" link2="eef_calib_link" reason="Never"/>
+</robot>

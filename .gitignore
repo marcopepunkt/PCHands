@@ -1,0 +1,15 @@
+.idea
+*wandb*
+__pycache__
+assets/mano_hand/models
+rl_scripts/demo
+rl_scripts/teleop_collection
+rl_sim/env/norm
+adf/render
+*.pth
+*.pkl
+*.npy
+*.pickle
+*_.urdf
+trpo_*
+dapg_*
