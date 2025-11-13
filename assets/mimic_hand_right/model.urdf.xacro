@@ -1,0 +1,905 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mimic_hand_right">
+    <xacro:macro name="mimic_model">
+
+        <!-- Declare an argument to choose hand chirality (default is right) -->
+        <xacro:property name="hand_chirality" value="right"/>
+
+        <!-- Set property 'flip': for right hand, flip=1; for left hand, flip=-1 -->
+        <xacro:property name="flip" value="1.0" />
+
+
+        <!-- Materials -->
+        <material name="silver_default">
+            <color rgba="0.700 0.700 0.700 1.000"/>
+        </material>
+        <material name="opaque160160160">
+            <color rgba="0.6274509803921569 0.6274509803921569 0.6274509803921569 1.0"/>
+        </material>
+        <material name="plate">
+            <color rgba="0.3137254901960784 0.3137254901960784 0.3137254901960784 1.0"/>
+        </material>
+
+        <!-- Link: hand_root -->
+        <xacro:property name="yaml_file" value="../../adf/calib_eef.yaml" />
+        <xacro:property name="calib_eef" value="${load_yaml(yaml_file)['mimic_hand_right']}"/>
+        <!--  palm frame  -->
+        <link name="eef_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_calib_joint" type="fixed">
+            <parent link="eef_link"/>
+            <child link="eef_calib_link"/>
+            <origin xyz="${calib_eef['tx']} ${calib_eef['ty']} ${calib_eef['tz']}" 
+                    rpy="${calib_eef['rx']} ${calib_eef['ry']} ${calib_eef['rz']}"/>
+        </joint>
+        <link name="eef_calib_link">
+            <inertial>
+                <origin rpy="0 0 0" xyz="0 0 0"/>
+                <mass value="0.0001"/>
+                <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+            </inertial>
+        </link>
+        <joint name="r_eef_fixed_joint" type="fixed">
+            <parent link="eef_calib_link"/>
+            <child link="hand_root"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+
+        <link name="hand_root">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.0009356807639956801} 0.004252655365861678 0.08557787719053644"/>
+            <mass value="1.5882663418284566"/>
+            <inertia ixx="0.006194" ixy="6e-06" ixz="0.000114" iyy="0.006926" iyz="-0.000488" izz="0.00161"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="mesh/base_link.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="opaque160160160"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="0 0 0"/>
+            <geometry>
+                <mesh filename="mesh/base_link.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: thumb_cmc_v3_1 -->
+        <link name="thumb_cmc_v3_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.00785808351454632} 0.006516134575804997 0.012270327321838831"/>
+            <mass value="0.01596362060103965"/>
+            <inertia ixx="1e-06" ixy="0" ixz="0" iyy="1e-06" iyz="0" izz="1e-06"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.0175} 0.014723 -0.124007"/>
+            <geometry>
+                <mesh filename="mesh/thumb_cmc_v3_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.0175} 0.014723 -0.124007"/>
+            <geometry>
+                <mesh filename="mesh/thumb_cmc_v3_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: thumb_pp_v1_1 -->
+        <link name="thumb_pp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.025419160405717376} -0.004484923071512031 -0.0034017129243726074"/>
+            <mass value="0.043345870512737125"/>
+            <inertia ixx="1.1e-05" ixy="-8e-06" ixz="-2e-06" iyy="1.5e-05" iyz="-1e-06" izz="2.5e-05"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.026513} 0.016073 -0.142105"/>
+            <geometry>
+                <mesh filename="mesh/thumb_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.026513} 0.016073 -0.142105"/>
+            <geometry>
+                <mesh filename="mesh/thumb_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: thumb_mp_v1_1 -->
+        <link name="thumb_mp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.0051657924432268534} 0.013793494215477015 0.01964492983804067"/>
+            <mass value="0.03422217682470693"/>
+            <inertia ixx="2.4e-05" ixy="-2e-06" ixz="-1e-06" iyy="3e-06" iyz="-4e-06" izz="2.3e-05"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.050612} 0.043002 -0.137329"/>
+            <geometry>
+                <mesh filename="mesh/thumb_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.050612} 0.043002 -0.137329"/>
+            <geometry>
+                <mesh filename="mesh/thumb_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: thumb_dp_v1_1 -->
+        <link name="thumb_dp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.01599410580766874} 0.026097061901222303 -0.003578371934028879"/>
+            <mass value="0.03077172994100439"/>
+            <inertia ixx="2.8e-05" ixy="-1.9e-05" ixz="1e-05" iyy="2.5e-05" iyz="1e-05" izz="4e-05"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.055069} 0.056381 -0.168267"/>
+            <geometry>
+                <mesh filename="mesh/thumb_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.055069} 0.056381 -0.168267"/>
+            <geometry>
+                <mesh filename="mesh/thumb_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint: thumb_fingertip_offset -->
+        <joint type="fixed" name="thumb_fingertip_offset">
+            <parent link="thumb_dp_v1_1"/>
+            <child link="thumb_fingertip"/>
+            <origin xyz="${flip * -0.008} 0.0092 0.012" rpy="-2.2 0.3 0.4"/>
+        </joint>
+
+        <!-- Link: thumb_fingertip -->
+        <link name="thumb_fingertip">
+            <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+        </link>
+
+        <!-- Link: index_mcp_v1_1 -->
+        <link name="index_mcp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 0.0007163476712099791} 0.00822663933872603 -0.0005545922957112259"/>
+            <mass value="0.0109342658232286"/>
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.021501} -0.011999 -0.195486"/>
+            <geometry>
+                <mesh filename="mesh/ring_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.021501} -0.011999 -0.195486"/>
+            <geometry>
+                <mesh filename="mesh/ring_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: index_pp_v1_1 -->
+        <link name="index_pp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.007713186544060214} 0.0058700296110617695 0.01797279588361478"/>
+            <mass value="0.0315843193093035"/>
+            <inertia ixx="4e-06" ixy="0.0" ixz="0.0" iyy="4e-06" iyz="0.0" izz="1e-06"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.03013} -0.019311 -0.198622"/>
+            <geometry>
+                <mesh filename="mesh/ring_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.03013} -0.019311 -0.198622"/>
+            <geometry>
+                <mesh filename="mesh/ring_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: index_mp_v1_1 -->
+        <link name="index_mp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006116749132801014} 0.003584356983962072 0.014442912146370418"/>
+            <mass value="0.014981287246067603"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.02856} -0.025806 -0.234096"/>
+            <geometry>
+                <mesh filename="mesh/ring_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.02856} -0.025806 -0.234096"/>
+            <geometry>
+                <mesh filename="mesh/ring_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: index_dp_v1_1 -->
+        <link name="index_dp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006147514550012036} 0.0024933973548472814 0.008432581910906956"/>
+            <mass value="0.015244713964147628"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.02856} -0.029324 -0.262882"/>
+            <geometry>
+                <mesh filename="mesh/ring_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.02856} -0.029324 -0.262882"/>
+            <geometry>
+                <mesh filename="mesh/ring_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint: index_fingertip_offset -->
+        <joint type="fixed" name="index_fingertip_offset">
+            <parent link="index_dp_v1_1"/>
+            <child link="index_fingertip"/>
+            <origin xyz="${flip * -0.0067} -0.001 0.013" rpy="1.57 0.0 0.0"/>
+        </joint>
+
+        <!-- Link: index_fingertip -->
+        <link name="index_fingertip">
+            <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+        </link>
+
+        <!-- Link: ring_mcp_v1_1 -->
+        <link name="ring_mcp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.0007168597575665063} 0.008226639445319572 -0.0005545923087513782"/>
+            <mass value="0.0109342658232286"/>
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.017442} -0.010999 -0.195486"/>
+            <geometry>
+                <mesh filename="mesh/ring_mcp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.017442} -0.010999 -0.195486"/>
+            <geometry>
+                <mesh filename="mesh/ring_mcp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: ring_pp_v1_1 -->
+        <link name="ring_pp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.008227327163995714} 0.004492029577529429 0.018140795887695904"/>
+            <mass value="0.0315843193093035"/>
+            <inertia ixx="4e-06" ixy="0.0" ixz="0.0" iyy="4e-06" iyz="0.0" izz="1e-06"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.010131} -0.019689 -0.198454"/>
+            <geometry>
+                <mesh filename="mesh/ring_pp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.010131} -0.019689 -0.198454"/>
+            <geometry>
+                <mesh filename="mesh/ring_pp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: ring_mp_v1_1 -->
+        <link name="ring_mp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006336764187087205} 0.002508356983992408 0.01457391214635026"/>
+            <mass value="0.014981287246067603"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.012048} -0.025882 -0.233965"/>
+            <geometry>
+                <mesh filename="mesh/ring_mp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.012048} -0.025882 -0.233965"/>
+            <geometry>
+                <mesh filename="mesh/ring_mp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: ring_dp_v1_1 -->
+        <link name="ring_dp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006305998769860908} 0.0014173973548926438 0.008563581910885298"/>
+            <mass value="0.015244713964147628"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.012048} -0.0294 -0.262751"/>
+            <geometry>
+                <mesh filename="mesh/ring_dp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.012048} -0.0294 -0.262751"/>
+            <geometry>
+                <mesh filename="mesh/ring_dp_v1_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint: ring_fingertip_offset -->
+        <joint type="fixed" name="ring_fingertip_offset">
+            <parent link="ring_dp_v1_1"/>
+            <child link="ring_fingertip"/>
+            <origin xyz="${flip * -0.0067} -0.001 0.013" rpy="1.57 0.0 0.0"/>
+        </joint>
+
+        <!-- Link: ring_fingertip -->
+        <link name="ring_fingertip">
+            <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+        </link>
+
+        <!-- Link: middle_mcp_v1_1 -->
+        <link name="middle_mcp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * 2.4396012891152e-07} 0.008247790847137514 -0.0007089054378107973"/>
+            <mass value="0.010918503382766636"/>
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.001779} -0.014661 -0.198676"/>
+            <geometry>
+                <mesh filename="mesh/middle_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.001779} -0.014661 -0.198676"/>
+            <geometry>
+                <mesh filename="mesh/middle_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: middle_pp_v1_1 -->
+        <link name="middle_pp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.007999757423527917} 0.005785290210222616 0.02100616648516873"/>
+            <mass value="0.03632734202844571"/>
+            <inertia ixx="6e-06" ixy="0.0" ixz="0.0" iyy="6e-06" iyz="0.0" izz="1e-06"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.009779} -0.022744 -0.201579"/>
+            <geometry>
+                <mesh filename="mesh/middle_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.009779} -0.022744 -0.201579"/>
+            <geometry>
+                <mesh filename="mesh/middle_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: middle_mp_v1_1 -->
+        <link name="middle_mp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006499756659863336} 0.0032342431797688434 0.015677880145488987"/>
+            <mass value="0.01804419037729546"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.008279} -0.03057 -0.242892"/>
+            <geometry>
+                <mesh filename="mesh/middle_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.008279} -0.03057 -0.242892"/>
+            <geometry>
+                <mesh filename="mesh/middle_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: middle_dp_v1_1 -->
+        <link name="middle_dp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.0064997566598571045} 0.002069248418014341 0.008424198919455117"/>
+            <mass value="0.01617862414728451"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * -0.008279} -0.034954 -0.274085"/>
+            <geometry>
+                <mesh filename="mesh/middle_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * -0.008279} -0.034954 -0.274085"/>
+            <geometry>
+                <mesh filename="mesh/middle_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint: middle_fingertip_offset -->
+        <joint type="fixed" name="middle_fingertip_offset">
+            <parent link="middle_dp_v1_1"/>
+            <child link="middle_fingertip"/>
+            <origin xyz="${flip * -0.0067} -0.001 0.013" rpy="1.57 0.0 0.0"/>
+        </joint>
+
+        <!-- Link: middle_fingertip -->
+        <link name="middle_fingertip">
+            <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+        </link>
+
+        <!-- Link: pinky_mcp_v1_1 -->
+        <link name="pinky_mcp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.0014950053435854038} 0.008124260460377472 -0.0005413262976813604"/>
+            <mass value="0.010918503382766636"/>
+            <inertia ixx="0.0" ixy="0.0" ixz="0.0" iyy="0.0" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.036379} -0.005707 -0.183022"/>
+            <geometry>
+                <mesh filename="mesh/pinky_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.036379} -0.005707 -0.183022"/>
+            <geometry>
+                <mesh filename="mesh/pinky_mcp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: pinky_pp_v1_1 -->
+        <link name="pinky_pp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.008389521960915896} 0.003479736021423681 0.017077246382519673"/>
+            <mass value="0.028904055537007152"/>
+            <inertia ixx="3e-06" ixy="0.0" ixz="0.0" iyy="3e-06" iyz="0.0" izz="1e-06"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.029885} -0.015047 -0.185913"/>
+            <geometry>
+                <mesh filename="mesh/pinky_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.029885} -0.015047 -0.185913"/>
+            <geometry>
+                <mesh filename="mesh/pinky_pp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: pinky_mp_v1_1 -->
+        <link name="pinky_mp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.0065796571186917535} 0.0015011775208877108 0.013637953180647422"/>
+            <mass value="0.015401173741058686"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.031722} -0.020724 -0.218465"/>
+            <geometry>
+                <mesh filename="mesh/pinky_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.031722} -0.020724 -0.218465"/>
+            <geometry>
+                <mesh filename="mesh/pinky_mp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Link: pinky_dp_v1_1 -->
+        <link name="pinky_dp_v1_1">
+            <inertial>
+            <origin rpy="0 0 0" xyz="${flip * -0.006556058482932316} 0.0006098489584854018 0.0073894418868115375"/>
+            <mass value="0.013847327351533045"/>
+            <inertia ixx="1e-06" ixy="0.0" ixz="0.0" iyy="1e-06" iyz="0.0" izz="0.0"/>
+            </inertial>
+            <visual>
+            <origin rpy="0 0 0" xyz="${flip * 0.031722} -0.023992 -0.245266"/>
+            <geometry>
+                <mesh filename="mesh/pinky_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="plate"/>
+            </visual>
+            <collision>
+            <origin rpy="0 0 0" xyz="${flip * 0.031722} -0.023992 -0.245266"/>
+            <geometry>
+                <mesh filename="mesh/pinky_dp_v1_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            </collision>
+        </link>
+
+        <!-- Joint: pinky_fingertip_offset -->
+        <joint type="fixed" name="pinky_fingertip_offset">
+            <parent link="pinky_dp_v1_1"/>
+            <child link="pinky_fingertip"/>
+            <origin xyz="${flip * -0.0067} -0.001 0.013" rpy="1.57 0.0 0.0"/>
+        </joint>
+
+        <!-- Link: pinky_fingertip -->
+        <link name="pinky_fingertip">
+            <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="0.0"/>
+            <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="0" ixz="0" iyz="0"/>
+            </inertial>
+        </link>
+
+        <!-- Joint: thumb_base2cmc -->
+        <joint name="thumb_base2cmc" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.0175} -0.014723 0.124007"/>
+            <parent link="hand_root"/>
+            <child link="thumb_cmc_v3_1"/>
+            <axis xyz="-0.363746 -0.606763 -0.706773"/>
+            <limit lower="-0.5236" upper="1.7453" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: thumb_cmc2mcp -->
+        <joint name="thumb_cmc2mcp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.009013} -0.00135 0.018098"/>
+            <parent link="thumb_cmc_v3_1"/>
+            <child link="thumb_pp_v1_1"/>
+            <axis xyz="-0.590559 -0.436556 0.678718"/>
+            <limit lower="-0.9599" upper="0.9599" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: thumb_mcp2pp -->
+        <joint name="thumb_mcp2pp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.024099} -0.026929 -0.004776"/>
+            <parent link="thumb_pp_v1_1"/>
+            <child link="thumb_mp_v1_1"/>
+            <axis xyz="-0.816804 -0.563034 -0.125795"/>
+            <limit lower="-0.6981" upper="0.5236" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: thumb_pp2dp_actuated -->
+        <joint name="thumb_pp2dp_actuated" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.004457} -0.013379 0.030938"/>
+            <parent link="thumb_mp_v1_1"/>
+            <child link="thumb_dp_v1_1"/>
+            <axis xyz="-0.816804 -0.563034 -0.125795"/>
+            <limit lower="-0.8727" upper="0.6981" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: index_base2mcp -->
+        <joint name="index_base2mcp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.021501} 0.011999 0.195486"/>
+            <parent link="hand_root"/>
+            <child link="index_mcp_v1_1"/>
+            <axis xyz="-0.08673 -0.988877 0.120835"/>
+            <limit lower="-0.2618" upper="0.2618" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: index_mcp2pp -->
+        <joint name="index_mcp2pp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.008629} 0.007312 0.003136"/>
+            <parent link="index_mcp_v1_1"/>
+            <child link="index_pp_v1_1"/>
+            <axis xyz="0.996232 -0.086089 0.01052"/>
+            <limit lower="-0.0873" upper="1.5708" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: index_pp2mp -->
+        <joint name="index_pp2mp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * -0.00157} 0.006495 0.035474"/>
+            <parent link="index_pp_v1_1"/>
+            <child link="index_mp_v1_1"/>
+            <axis xyz="0.996232 -0.086089 0.01052"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Joint: index_mp2dp -->
+        <joint name="index_mp2dp" type="revolute">
+            <origin rpy="0 0 0" xyz="0 0.003518 0.028786"/>
+            <parent link="index_mp_v1_1"/>
+            <child link="index_dp_v1_1"/>
+            <axis xyz="0.996232 -0.086089 0.01052"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Middle -->
+        <joint name="middle_base2mcp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.001779} 0.014661 0.198676"/>
+            <parent link="hand_root"/>
+            <child link="middle_mcp_v1_1"/>
+            <axis xyz="0.0 -0.990268 0.139173"/>
+            <limit lower="-0.2618" upper="0.2618" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="middle_mcp2pp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.008} 0.008083 0.002903"/>
+            <parent link="middle_mcp_v1_1"/>
+            <child link="middle_pp_v1_1"/>
+            <axis xyz="1.0 0.0 0.0"/>
+            <limit lower="-0.0873" upper="1.5708" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="middle_pp2mp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * -0.0015} 0.007826 0.041313"/>
+            <parent link="middle_pp_v1_1"/>
+            <child link="middle_mp_v1_1"/>
+            <axis xyz="1.0 0.0 0.0"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="middle_mp2dp" type="revolute">
+            <origin rpy="0 0 0" xyz="0 0.004384 0.031193"/>
+            <parent link="middle_mp_v1_1"/>
+            <child link="middle_dp_v1_1"/>
+            <axis xyz="1.0 0.0 0.0"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Ring -->
+        <joint name="ring_base2mcp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * -0.017442} 0.010999 0.195486"/>
+            <parent link="hand_root"/>
+            <child link="ring_mcp_v1_1"/>
+            <axis xyz="0.08673 -0.988877 0.120835"/>
+            <limit lower="-0.2618" upper="0.2618" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="ring_mcp2pp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * 0.007311} 0.00869 0.002968"/>
+            <parent link="ring_mcp_v1_1"/>
+            <child link="ring_pp_v1_1"/>
+            <axis xyz="0.996232 0.086089 -0.01052"/>
+            <limit lower="-0.0873" upper="1.5708" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="ring_pp2mp" type="revolute">
+            <origin rpy="0 0 0" xyz="${flip * -0.001917} 0.006193 0.035511"/>
+            <parent link="ring_pp_v1_1"/>
+            <child link="ring_mp_v1_1"/>
+            <axis xyz="0.996232 0.086089 -0.01052"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="ring_mp2dp" type="revolute">
+            <origin rpy="0 0 0" xyz="0 0.003518 0.028786"/>
+            <parent link="ring_mp_v1_1"/>
+            <child link="ring_dp_v1_1"/>
+            <axis xyz="0.996232 0.086089 -0.01052"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <!-- Pinky -->
+        <joint name="pinky_base2mcp" type="revolute">
+            <origin rpy="0 0 0" xyz="-0.036379 0.005707 0.183022"/>
+            <parent link="hand_root"/>
+            <child link="pinky_mcp_v1_1"/>
+            <axis xyz="0.180811 -0.976287 0.11904"/>
+            <limit lower="-0.2618" upper="0.2618" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="pinky_mcp2pp" type="revolute">
+            <origin rpy="0 0 0" xyz="0.006494 0.00934 0.002891"/>
+            <parent link="pinky_mcp_v1_1"/>
+            <child link="pinky_pp_v1_1"/>
+            <axis xyz="0.983518 0.179482 -0.021884"/>
+            <limit lower="-0.0873" upper="1.5708" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="pinky_pp2mp" type="revolute">
+            <origin rpy="0 0 0" xyz="-0.001837 0.005677 0.032552"/>
+            <parent link="pinky_pp_v1_1"/>
+            <child link="pinky_mp_v1_1"/>
+            <axis xyz="0.983518 0.179482 -0.021884"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+
+        <joint name="pinky_mp2dp" type="revolute">
+            <origin rpy="0 0 0" xyz="0 0.003268 0.026801"/>
+            <parent link="pinky_mp_v1_1"/>
+            <child link="pinky_dp_v1_1"/>
+            <axis xyz="0.983518 0.179482 -0.021884"/>
+            <limit lower="0.0000" upper="1.6581" velocity="8.48" effort="0.95"/>
+        </joint>
+    </xacro:macro>
+
+    <xacro:macro name="mimic_anchor">
+        <xacro:property name="hand_chirality" value="right"/>
+        <!--  anchor  -->
+        <link name="A_00"/>
+        <link name="A_01"/>
+        <link name="A_02"/>
+        <link name="A_03"/>
+        <link name="A_04"/>
+        <link name="A_05"/>
+        <link name="A_06"/>
+        <link name="A_07"/>
+        <link name="A_08"/>
+        <link name="A_09"/>
+        <link name="A_10"/>
+        <link name="A_11"/>
+        <link name="A_12"/>
+        <link name="A_13"/>
+        <link name="A_14"/>
+        <link name="A_15"/>
+        <link name="A_16"/>
+        <link name="A_17"/>
+        <link name="A_18"/>
+        <link name="A_19"/>
+        <link name="A_20"/>
+        <link name="A_21"/>
+        
+        <!--  thumb  -->
+        <joint name="joint_A_00" type="fixed">
+            <child link="A_00"/>
+            <parent link="thumb_pp_v1_1"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_01" type="fixed">
+            <child link="A_01"/>
+            <parent link="thumb_mp_v1_1"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_02" type="fixed">
+            <child link="A_02"/>
+            <parent link="thumb_dp_v1_1"/>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+
+        <joint name="joint_A_03" type="fixed">
+            <child link="A_03"/>
+            <parent link="thumb_fingertip"/>
+            <origin xyz="-0.005 -0.01 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_04" type="fixed">
+            <child link="A_04"/>
+            <parent link="index_pp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_05" type="fixed">
+            <child link="A_05"/>
+            <parent link="index_mp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_06" type="fixed">
+            <child link="A_06"/>
+            <parent link="index_dp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_07" type="fixed">
+            <child link="A_07"/>
+            <parent link="index_fingertip"/>
+            <origin xyz="0 0.01 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_08" type="fixed">
+            <child link="A_08"/>
+            <parent link="middle_pp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_09" type="fixed">
+            <child link="A_09"/>
+            <parent link="middle_mp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_10" type="fixed">
+            <child link="A_10"/>
+            <parent link="middle_dp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_11" type="fixed">
+            <child link="A_11"/>
+            <parent link="middle_fingertip"/>
+            <origin xyz="0 0.01 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_12" type="fixed">
+            <child link="A_12"/>
+            <parent link="ring_pp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_13" type="fixed">
+            <child link="A_13"/>
+            <parent link="ring_mp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_14" type="fixed">
+            <child link="A_14"/>
+            <parent link="ring_dp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_15" type="fixed">
+            <child link="A_15"/>
+            <parent link="ring_fingertip"/>
+            <origin xyz="0 0.01 -0.005" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_16" type="fixed">
+            <child link="A_16"/>
+            <parent link="pinky_pp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_17" type="fixed">
+            <child link="A_17"/>
+            <parent link="pinky_mp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+         </joint>
+        <joint name="joint_A_18" type="fixed">
+            <child link="A_18"/>
+            <parent link="pinky_dp_v1_1"/>
+            <origin xyz="-0.007 -0.007 0" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_19" type="fixed">
+            <child link="A_19"/>
+            <parent link="pinky_fingertip"/>
+            <origin xyz="0 0.01 -0.005" rpy="0 0 0"/>
+        </joint>
+
+        <joint name="joint_A_20" type="fixed">
+            <child link="A_20"/>
+            <parent link="pinky_mcp_v1_1"/>
+            <origin xyz="0.01 0 -0.01" rpy="0 0 0"/>
+        </joint>
+        <joint name="joint_A_21" type="fixed">
+            <child link="A_21"/>
+            <parent link="index_mcp_v1_1"/>
+            <origin xyz="-0.01 0 -0.02" rpy="0 0 0"/>
+        </joint>
+    </xacro:macro>
+</robot>

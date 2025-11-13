@@ -1,0 +1,76 @@
+gc_tendons:
+  thumb_base2cmc : {}
+  thumb_cmc2mcp : {}
+  thumb_mcp2pp : {}
+  thumb_pp2dp_actuated : {}
+
+  index_base2mcp : {}
+  index_mcp2pp : {}
+  index_pp2mp : {index_mp2dp : 1}
+
+  middle_base2mcp : {}
+  middle_mcp2pp : {}
+  middle_pp2mp : {middle_mp2dp : 1}
+
+  ring_base2mcp : {}
+  ring_mcp2pp : {}
+  ring_pp2mp : {ring_mp2dp : 1}
+  
+  pinky_base2mcp : {}
+  pinky_mcp2pp : {}
+  pinky_pp2mp : {pinky_mp2dp : 1}
+
+
+finger_to_tip:
+  thumb: 'thumb_fingertip'
+  index: 'index_fingertip'
+  middle: 'middle_fingertip'
+  ring: 'ring_fingertip'
+  pinky: 'pinky_fingertip'
+
+finger_to_base:
+  thumb: thumb_cmc_v3_1
+  index: index_mcp_v1_1
+  middle: middle_mcp_v1_1
+  ring: ring_mcp_v1_1
+  pinky: pinky_mcp_v1_1
+
+wrist_name: hand_root
+
+gc_limits_lower : [
+  -30.0,     # thumb_base2cmc
+  -55.0,     # thumb_cmc2mcp
+  -40,      # thumb_mcp2pp
+  -50,     # thumb_pp2dp_actuated
+  -15.0,     # index_base2mcp
+  -5.0,     # index_mcp2pp
+  0.0,     # index_pp2mp
+  -15.0,     # middle_base2mcp
+  -5.0,     # middle_mcp2pp
+  0.0,     # middle_pp2mp
+  -15.0,     # ring_base2mcp
+  -5.0,     # ring_mcp2pp
+  0.0,     # ring_pp2mp
+  -15.0,     # pinky_base2mcp
+  -5.0,     # pinky_mcp2pp
+  0.0     # pinky_pp2mp
+]
+
+gc_limits_upper : [
+  100,     # thumb_base2cmc
+  55.0,     # thumb_cmc2mcp
+  30.0,     # thumb_mcp2pp
+  40.0,      # thumb_pp2dp_actuated
+  15.0,    # index_base2mcp
+  90.0,     # index_mcp2pp
+  95.0,     # index_pp2mp
+  15.0,    # middle_base2mcp
+  90.0,     # middle_mcp2pp
+  95.0,     # middle_pp2mp
+  15.0,    # ring_base2mcp
+  90.0,     # ring_mcp2pp
+  95.0,     # ring_pp2mp
+  15.0,    # pinky_base2mcp
+  90.0,     # pinky_mcp2pp
+  95.0     # pinky_pp2mp
+]
