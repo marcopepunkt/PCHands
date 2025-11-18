@@ -24,7 +24,7 @@ def load_robot(scene, robot_name):
     urdf = tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', dir=dir_urdf)
     urdf.write(xacro.process_file(path.join(dir_urdf, 'model_sapien.urdf')).toprettyxml(indent='    '))
     urdf.flush()
-    robot_builder = loader.load_file_as_articulation_builder(urdf.name, no_visual=not render_enabled)
+    robot_builder = loader.load_file_as_articulation_builder(urdf.name)#, no_visual=not render_enabled)
     urdf.close()
 
     # disable self-collision

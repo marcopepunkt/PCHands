@@ -197,7 +197,11 @@ class AnchorAE:
                 pc = torch.randn_like(std) * std + mu
 
                 _x_ = self.decoder(torch.cat((pc, y_), dim=1))
+
+                # Reconstruction Loss (But not MSE but rather weighted-MAE)
                 l_rcs = (_x_ - x_).abs().mul(self.w_rcs[None]).mean()
+
+                # Kullback-Leibler divergence
                 l_kld = -torch.mean(1 + logvar - mu ** 2 - logvar.exp())
                 loss = l_rcs + self.a_kl * l_kld
 

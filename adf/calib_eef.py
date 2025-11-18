@@ -163,7 +163,7 @@ def compute_calib(names_mfy, vis=False, clip=(0.5, 0.06)):
     ancs = []
     for pc in pc_ref:
         anc = mano_mfy.pc_to_anchor(pc)
-        pose, _, _ = mano_mfy.anchor_to_pose(anc)
+        pose, _ = mano_mfy.anchor_to_pose(anc)
         anc = mano_mfy.pose_to_anchor(pose)
         ancs.append(anc)
     ancs = np.concatenate(ancs)
@@ -187,6 +187,7 @@ def main():
     calib_vals = []
     num_epoch = 1500
     for i in range(n_cycle):
+        print('Starting iteration {:02d} / {:02d}'.format(i + 1, n_cycle))
         # train and align
         fit_pca(reuse_model=(i > 0), num_epoch=int(num_epoch * (0.9 ** i)))
         calib_vals.append(compute_calib(names_mfy=Manipulator.names))
@@ -199,7 +200,7 @@ def main():
         print('########################################################')
 
     # last fitting
-    fit_pca(reuse_model=True, num_epoch=1500)
+    fit_pca(reuse_model=True, num_epoch=num_epoch)
     # print result
     for i, val in enumerate(calib_vals):
         print('ite: {:02d}, calib_rot: {:.04f}, calib_tsl: {:.04f}'.format(i + 1, val[0], val[1]))

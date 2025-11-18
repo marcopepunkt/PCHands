@@ -2,6 +2,7 @@
 SPDX-FileCopyrightText: 2025 Humanoid Sensing and Perception, Istituto Italiano di Tecnologia
 SPDX-License-Identifier: BSD-3-Clause
 """
+import numbers
 import sys
 import xacro
 import tempfile
@@ -12,26 +13,37 @@ from klampt.math import se3
 from klampt import WorldModel, vis, GeometricPrimitive
 sys.path.append(path.dirname(__file__))
 from cvae import AnchorAE
+from urdf_parser_py.urdf import URDF
+import yaml
 
 
 class Manipulator:
     names = ['robotiq_2f85', 'franka_gripper', 'widowx_gripper',
              'xarm_gripper', 'wsg50_gripper', 'rethink_egripper', 'fetch_gripper',
              'armar_hand_right', 'google_gripper', 'kinova_2f',  'kinova_3f_right',
-             'ergocub_hand_right', 'schunk_hand_right', 'allegro_hand_right', 'shadow_hand_right', 'leap_hand_right']
+             'ergocub_hand_right', 'schunk_hand_right', 'allegro_hand_right', 'shadow_hand_right', 'leap_hand_right', 'mimic_hand_right', 'orca_v1']
 
-    def __init__(self, model_name, fixed_base=True, verbose=False):
+    def __init__(self, model_name, fixed_base=True, verbose=True, headless=False, use_scheme=False):
         """
         init manipulator class
         :param model_name: str name of the available model
         :param fixed_base: bool fixed or floating base
         :param verbose: bool verbose model details
         """
-        assert model_name in Manipulator.names, "{} not found".format(model_name)
+        self.verbose = verbose
+
+        if "mimic" in model_name:
+            model_name = "mimic_hand_right"
+        if "orca" in model_name:
+            model_name = "orca_v1"
+
+        assert model_name in Manipulator.names, "{} not found in PCHands, please fix the name or add the model to PCHands".format(model_name)
         self.world = WorldModel()
         self.name = model_name
 
         # load robot
+        # dir_urdf = path.join(path.dirname(__file__), '../assets', model_name, 'model_klampt.urdf')
+
         dir_urdf = path.join(path.dirname(__file__), '../assets', model_name)
         urdf = tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', dir=dir_urdf)
         urdf_ = xacro.process_file(path.join(dir_urdf, 'model_klampt.urdf')).toprettyxml(indent='  ')
@@ -39,12 +51,23 @@ class Manipulator:
             urdf_ = urdf_.replace('freeze_root_link="0"', 'freeze_root_link="1"')
         else:
             urdf_ = urdf_.replace('freeze_root_link="1"', 'freeze_root_link="0"')
+        if headless:
+            urdf_ = urdf_.replace('visual="1"', 'visual="0"')
+
         urdf.write(urdf_)
         urdf.flush()
+
+        # SINCE YOU CANNOT GET THE JOINT NAME FROM DRIVER NAME, I NEED TO CREATE A MAP
+        urdf_class = URDF.from_xml_file(urdf.name)
+        self.link_name_to_joint_name = {j.child: j.name for j in urdf_class.joints}  # map child link -> joint name
+
         self.world.loadRobot(urdf.name)
         self.robot = self.world.robot(0)
         urdf.close()
 
+        self.base_path = dir_urdf
+
+        self.pca : AnchorAE  = None
         # load pose
         try:
             f_stats = path.join(path.dirname(__file__), 'stats.npy')
@@ -52,11 +75,30 @@ class Manipulator:
             self.pca = AnchorAE(load_model='pca.pth')
         except:
             print('PCA data not available!')
-            self.pca = None
             self.stats = None
 
+        # Load scheme if available
+        scheme_path = path.join(path.dirname(__file__), '../assets', model_name, 'scheme.yaml')
+        if path.exists(scheme_path) and use_scheme:
+            with open(scheme_path, 'r') as f:
+                self.scheme = yaml.safe_load(f)
+            self.joint_name_to_index = {}
+            self.dof = len(self.scheme.get('gc_tendons', []))
+            
+        else:
+            self.scheme = None
+            self.dof = self.robot.numDrivers()
+        
+        # for i in range(self.robot.numDrivers()):
+        #     d = self.robot.driver(i)
+        #     print(f"{i}: {d.getName()} ({d.getType()}) = {d.getValue()}")
+            # d = self.robot.driver(i)
+            # name = self.robot.link(d.getAffectedLink()).getName()
+            # value = d.getValue()         # current angle or displacement
+            # type_ = d.getType()          # e.g. "rotation", "translation"
+            # print(f"{i}: {name} -> {type_} = {value}")
+
         # properties
-        self.dof = self.robot.numDrivers()
         self.idx_joint = []
         for i in range(self.robot.numLinks()):
             if self.robot.getJointType(i) == 'normal':
@@ -73,7 +115,9 @@ class Manipulator:
         if not fixed_base:
             for i in range(6):
                 self.ik_dof.append(self.robot.link(i).getName())
-        for i in range(self.dof):
+        # THIS IS NOT PRETTY AND DOES NOT COVER THE ROLLING JOINT CASE, BUT IT WILL DO FOR NOW
+        # TODO: IMPROVE THIS
+        for i in range(self.robot.numDrivers()):
             self.ik_dof.append(self.robot.driver(i).getName())
 
         # verbose
@@ -99,15 +143,44 @@ class Manipulator:
         """
         self.robot.setConfig(self.cfg_init)
 
-    def forward_kinematic(self, q):
+    def forward_kinematic(self, q, use_scheme=False):
         """
         set driver joint values
         :param q: list of joint values
         :return: None
+
+        Here we have the joint angles from the dataset and want to apply them to the robot
+        The dataset has fewer DOFs than the number of drivers because of the tendon mapping
         """
-        assert len(q) == self.dof, (
-            'q is not in the correct length. Expect {}, given {}'.format(self.dof, len(q)))
-        self.robot.setConfig(self.robot.configFromDrivers(q))
+
+        if use_scheme and self.scheme is not None:
+            gc_tendons = self.scheme.get('gc_tendons', {}) # Dict of Tendons
+            assert len(q) == len(gc_tendons), (
+                'q is not in the correct length. Expect {}, given {}'.format(len(gc_tendons), len(q)))
+
+            q_mapped = np.zeros(self.robot.numDrivers())
+            for tendon_num, tendon_name in enumerate(gc_tendons.keys()):
+                value = q[tendon_num]
+                if not isinstance(value, numbers.Number):
+                    raise ValueError(f"Joint value for tendon '{tendon_name}' is not a number: {value} (type={type(value)})")
+                value = float(value)    
+                for i in range(self.robot.numDrivers()):
+                    driver_name = self.robot.driver(i).getName()
+                    joint_name = self.link_name_to_joint_name[driver_name]
+                    if joint_name == tendon_name:
+                        q_mapped[i] = value
+
+                    # check if this tendon has mappings
+                    mapping = gc_tendons[tendon_name]
+                    for mapped_joint, ratio in mapping.items():
+                        if joint_name == mapped_joint:
+                            q_mapped[i] = value 
+            self.robot.setConfig(self.robot.configFromDrivers(q_mapped))
+        else:
+            assert len(q) == self.robot.numDrivers(), (
+                'q is not in the correct length. Expect {}, given {}'.format(self.robot.numDrivers(), len(q)))
+            q = [float(val) for val in q]
+            self.robot.setConfig(self.robot.configFromDrivers(q))
 
     def get_links_transform(self, link_source, link_target):
         # source
@@ -145,7 +218,7 @@ class Manipulator:
             cfg[self.idx_joint[i]] = float(q[i])
         self.robot.setConfig(cfg)
 
-    def get_joint(self, all=True):
+    def get_joint(self, all=True, use_scheme=False):
         """
         get joint values
         :param all: False for only driver values, True for all joints values
@@ -154,8 +227,53 @@ class Manipulator:
         if all:
             cfg = self.robot.getConfig()
             q = [cfg[idx] for idx in self.idx_joint]
+            if self.scheme is not None and use_scheme:
+                gc_tendons = self.scheme.get('gc_tendons', {})
+              
+                # Now i want to map the joint_names to the tendon names
+                # There are more joints than tendons. gc_tendons looks like:
+                # gc_tendons:
+                #   thumb_base2cmc : {}
+                #   thumb_cmc2mcp : {}
+                #   thumb_mcp2pp : {}
+                #   thumb_pp2dp_actuated : {}
+
+                #   index_base2mcp : {}
+                #   index_mcp2pp : {}
+                #   index_pp2mp : {index_mp2dp : 1}
+
+                #   middle_base2mcp : {}
+                #   middle_mcp2pp : {}
+                #   middle_pp2mp : {middle_mp2dp : 1}
+
+                #   ring_base2mcp : {}
+                #   ring_mcp2pp : {}
+                #   ring_pp2mp : {ring_mp2dp : 1}
+                
+                #   pinky_base2mcp : {}
+                #   pinky_mcp2pp : {}
+                #   pinky_pp2mp : {pinky_mp2dp : 1}
+
+                # for index_pp2mp we take the average of index_pp2mp and index_mp2dp
+
+
+                q_mapped = np.zeros(len(gc_tendons))
+                for tendon_num, tendon_name in enumerate(gc_tendons.keys()):
+                    values = []
+                    for i, idx in enumerate(range(self.robot.numDrivers())):
+                        driver_name = self.robot.driver(idx).getName()
+                        joint_name = self.link_name_to_joint_name[driver_name]
+                        if joint_name == tendon_name:
+                            values.append(q[i])
+                        # check if this tendon has mappings
+                        mapping = gc_tendons[tendon_name]
+                        for mapped_joint, ratio in mapping.items():
+                            if joint_name == mapped_joint:
+                                values.append(q[i] * ratio)
+                        q_mapped[tendon_num] = np.mean(values)
+                return q_mapped.tolist()
         else:
-            q = [self.robot.driver(i).getValue() for i in range(self.dof)]
+            q = [self.robot.driver(i).getValue() for i in range(self.robot.numDrivers())]
         return q
 
     def get_base(self):
@@ -219,6 +337,10 @@ class Manipulator:
         q = []
         for i in range(self.dof):
             l_limit, u_limit = self.robot.driver(i).getLimits()
+
+            assert isinstance(l_limit, (int, float)) and isinstance(u_limit, (int, float)), \
+                f"Joint limits are not numeric for driver {i}: {l_limit}, {u_limit}"
+            
             q.append(l_limit + (u_limit - l_limit) * qn[i])
         return q
 
@@ -255,14 +377,27 @@ class Manipulator:
         vis.setWindowTitle("Visualization")
         vis.setBackgroundColor(1, 1, 1)
         vis.add('world', se3.identity(), fancy=True, length=0.05, width=0.004, hide_label=True)
-        vis.add('robot', self.robot, hide_label=True)
+        vis.add('robot', self.robot, hide_label=False)
         vis.setColor('robot', 0.7, 0.6, 0.6)
-        for i in range(22):
-            name = "A_{:02d}".format(i)
-            anc = GeometricPrimitive()
-            anc.setSphere(self.robot.link(name).getTransform()[1], 0.005)
-            vis.add(name, anc, hide_label=True)
-            vis.setColor(name, *self.colors[i])
+        try:
+            for i in range(22):
+                name = "A_{:02d}".format(i)
+                anc = GeometricPrimitive()
+                anc.setSphere(self.robot.link(name).getTransform()[1], 0.005)
+                vis.add(name, anc, hide_label=False)
+                vis.setColor(name, *self.colors[i])
+        except Exception as e:
+            print(f"Error visualizing anchors: {e}")
+
+        if self.verbose: 
+            #visualize the coordinate frame of each link
+            for i in range(self.robot.numLinks()):
+                name = self.robot.link(i).getName()
+                anc = GeometricPrimitive()
+                anc.setSphere(self.robot.link(name).getTransform()[1], 0.005)
+                name_vis = name + "_vis"
+                vis.add(name_vis, anc, hide_label=False)
+
         vp = vis.getViewport()
         vp.camera.ori = ['z', 'x', 'y']
         if cam_t is not None:
