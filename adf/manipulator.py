@@ -22,7 +22,7 @@ class Manipulator:
              'xarm_gripper', 'wsg50_gripper', 'rethink_egripper', 'fetch_gripper',
              'armar_hand_right', 'google_gripper', 'kinova_2f',  'kinova_3f_right',
              'ergocub_hand_right', 'schunk_hand_right', 'allegro_hand_right', 'shadow_hand_right', 'leap_hand_right', 'mimic_hand_right', 'orca_v1']
-
+    # names = ['armar_hand_right','ergocub_hand_right', 'schunk_hand_right','shadow_hand_right', 'mimic_hand_right', 'orca_v1', 'leap_hand_right', 'kinova_3f_right']
     def __init__(self, model_name, fixed_base=True, verbose=True, headless=False, use_scheme=False):
         """
         init manipulator class
@@ -415,6 +415,7 @@ class Manipulator:
             return vis.screenshot('numpy')
         else:
             vis.show()
+            # vis.spin(0.1)
             vis.screenshot('Image').save(save)
 
     colors = np.array([[5.03830e-02, 2.98030e-02, 5.27975e-01],

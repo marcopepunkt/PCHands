@@ -6,7 +6,7 @@ print(Manipulator.names)
 # create manipulator instance
 i = 10
 
-manip = Manipulator(Manipulator.names[-1], verbose=False)
+manip = Manipulator(Manipulator.names[0], verbose=False)
 # # random values in joint-space
 q = np.zeros(manip.dof)
 # print(f"DOF: {manip.dof}")
