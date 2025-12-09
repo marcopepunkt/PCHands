@@ -17,11 +17,12 @@ trajectory_a = np.zeros((len_traj, manip_a_dof))
 for i in range(manip_a_dof):
     trajectory_a[:, i] = q  
 
-path = "./cross_emb_transfer/"
+path = ".data/cross_emb_transfer/"
 for i in range(len_traj):
     trajectory_a[i, :] = manip_a.denormalize_joint(trajectory_a[i, :])
     manip_a.forward_kinematic(trajectory_a[i, :])
     anchors_a =manip_a.get_anchor()
+    print(f"Anchors at step {i}:\n", anchors_a)
     pcs = manip_a.anchor_to_pc(anchors_a)
 
     # just keep the first pcs and zero the rest for simplicity

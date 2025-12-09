@@ -15,6 +15,7 @@ sys.path.append(path.dirname(__file__))
 from cvae import AnchorAE
 from urdf_parser_py.urdf import URDF
 import yaml
+from adf.mano_hand import ManoHand
 
 
 class Manipulator:
@@ -23,7 +24,7 @@ class Manipulator:
              'armar_hand_right', 'google_gripper', 'kinova_2f',  'kinova_3f_right',
              'ergocub_hand_right', 'schunk_hand_right', 'allegro_hand_right', 'shadow_hand_right', 'leap_hand_right', 'mimic_hand_right', 'orca_v1']
     # names = ['armar_hand_right','ergocub_hand_right', 'schunk_hand_right','shadow_hand_right', 'mimic_hand_right', 'orca_v1', 'leap_hand_right', 'kinova_3f_right']
-    def __init__(self, model_name, fixed_base=True, verbose=True, headless=False, use_scheme=False):
+    def __init__(self, model_name, fixed_base=True, verbose=False, headless=False, use_scheme=False):
         """
         init manipulator class
         :param model_name: str name of the available model
@@ -46,7 +47,10 @@ class Manipulator:
 
         dir_urdf = path.join(path.dirname(__file__), '../assets', model_name)
         urdf = tempfile.NamedTemporaryFile(mode='w', suffix='.urdf', dir=dir_urdf)
+        self.tmp_urdf_file = urdf.name
+
         urdf_ = xacro.process_file(path.join(dir_urdf, 'model_klampt.urdf')).toprettyxml(indent='  ')
+        
         if fixed_base:
             urdf_ = urdf_.replace('freeze_root_link="0"', 'freeze_root_link="1"')
         else:
@@ -137,6 +141,37 @@ class Manipulator:
             for i in range(len(self.ik_dof)):
                 print(i, self.ik_dof[i])
 
+    def cleanup(self):
+        """cleanup temporary files"""
+        if path.exists(self.tmp_urdf_file):
+            path.remove(self.tmp_urdf_file)
+            self.tmp_urdf_file = None
+
+    
+
+    def save_calib_eef(self, base_pos, base_rot):
+        file_path = path.join(path.dirname(__file__), "calib_eef.yaml")
+
+        # load existing yaml
+        try:
+            with open(file_path, "r") as f:
+                calib = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            calib = {}
+        
+        base_pos = [float(v) for v in base_pos]
+        base_rot = [float(v) for v in base_rot]
+
+        # update only this key
+        calib[self.name] = dict(
+            tx=base_pos[0], ty=base_pos[1], tz=base_pos[2],
+            rx=base_rot[0], ry=base_rot[1], rz=base_rot[2],
+        )
+
+        # write back
+        with open(file_path, "w") as f:
+            yaml.safe_dump(calib, f)
+
     def reset(self):
         """
         reset all joint configuration to init state
@@ -204,6 +239,34 @@ class Manipulator:
         """
         anchors = np.array([self.robot.link('A_{:02d}'.format(i)).getTransform()[1] for i in range(22)])
         return anchors
+
+    def get_mano(self):
+        """
+        get mano joint values
+        :return: list of mano joint values
+                """
+        if not hasattr(self, "mano"):
+            self.mano = ManoHand()
+        print("Getting MANO pose for", self.name)
+        self.mano.inverse_kinematic(self.get_anchor())
+        
+        return self.mano.get_pose()        
+
+    def mano_to_joints(self, mano_pose):
+        """
+        get mano keypoints
+        :return: np.ndarray - mano keypoints [21, 3]
+        """
+        if not hasattr(self, "mano"):
+            self.mano = ManoHand()
+        print("Getting MANO keypoints for", self.name)
+        # _ = self.mano.pose_to_anchor(mano_pose)
+        anchors = self.mano.get_anchor(pose=mano_pose)
+        # keypoints = self.mano.get_anchor()
+        self.inverse_kinematic(anchors)
+        joint_values = self.get_joint(all=False, use_scheme=True)
+
+        return joint_values
 
     def set_joint(self, q):
         """
@@ -301,7 +364,7 @@ class Manipulator:
         cfg[5] = q[3]
         self.robot.setConfig(cfg)
 
-    def inverse_kinematic(self, pos_anchor, focus_tip=False):
+    def inverse_kinematic(self, pos_anchor, focus_tip=False, **kwargs):
         """
         set driver joint values from anchor position
         :param pos_anchor: list of anchor position [x,y,z]
@@ -321,6 +384,8 @@ class Manipulator:
             #     secondary.append(ik.fixed_objective(self.robot.link('eef_link')))
             #     secondary.append(ik.fixed_rotation_objective(self.robot.link('eef_link')))
         else:
+            links = [self.robot.link('A_{:02d}'.format(i)).getName() for i in range(len(pos_anchor))]
+            print(links)
             objs = [ik.objective(self.robot.link('A_{:02d}'.format(i)), local=[0, 0, 0], world=pos_anchor[i])
                     for i in range(len(pos_anchor))]
             secondary = None
@@ -365,7 +430,7 @@ class Manipulator:
         pc = self.pca.transform(anchor.flatten()[None], self.name)[0]
         return pc
 
-    def vis_model(self, cam_t=None, cam_r=[0, -1.57, -1.57], cam_dist=0.6, save=None):
+    def vis_model(self, cam_t=None, cam_r=[0, -1.57, -1.57], cam_dist=0.6, save=None, target_anchors=None):
         """
         visualize mesh and anchor
         :param cam_t: list of float [x, y, z] visual translation
@@ -374,6 +439,7 @@ class Manipulator:
         :param save: image saving path
         :return: None
         """
+        vis.init("osmesa") 
         vis.setWindowTitle("Visualization")
         vis.setBackgroundColor(1, 1, 1)
         vis.add('world', se3.identity(), fancy=True, length=0.05, width=0.004, hide_label=True)
@@ -389,6 +455,13 @@ class Manipulator:
         except Exception as e:
             print(f"Error visualizing anchors: {e}")
 
+        if target_anchors is not None:
+            for anchor in target_anchors:
+                name = "target_anchor_{}".format(np.random.randint(0, 1e6))
+                anc = GeometricPrimitive()
+                anc.setSphere(anchor, 0.005)
+                vis.add(name, anc, hide_label=True)
+                vis.setColor(name, 0, 1, 0, 0.5)
         if self.verbose: 
             #visualize the coordinate frame of each link
             for i in range(self.robot.numLinks()):
@@ -411,12 +484,13 @@ class Manipulator:
         if save is None:
             vis.dialog()
         elif save == 'return':
-            vis.show()
+            vis.show(display=False)
             return vis.screenshot('numpy')
         else:
             vis.show()
-            # vis.spin(0.1)
+            vis.spin(.2)
             vis.screenshot('Image').save(save)
+        return vis
 
     colors = np.array([[5.03830e-02, 2.98030e-02, 5.27975e-01],
                        [1.64070e-01, 2.01710e-02, 5.77478e-01],

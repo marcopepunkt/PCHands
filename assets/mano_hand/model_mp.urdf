@@ -9,6 +9,7 @@ SPDX-License-Identifier: BSD-3-Clause
     <link name="root3"/>
     <link name="root4"/>
     <link name="root5"/>
+    
     <joint name="x_joint" type="prismatic">
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <parent link="root0"/>

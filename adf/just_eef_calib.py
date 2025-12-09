@@ -17,7 +17,7 @@ from pytransform3d.rotations import euler_from_matrix, matrix_from_euler, axis_a
 
 n_pc = 10
 n_cycle = 8
-name_ref = ['robotiq_2f85', 'google_gripper', 'kinova_3f_right', 'armar_hand_right']
+eefs = ['mano_hand', ]
 
 
 def clear_calib():

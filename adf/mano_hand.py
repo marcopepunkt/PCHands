@@ -27,11 +27,24 @@ from klampt import vis, TriangleMesh, GeometricPrimitive
 from pytransform3d.rotations import matrix_from_euler
 from pytransform3d.transformations import invert_transform, transform_from, vectors_to_points, transform
 sys.path.append(path.dirname(__file__))
-from cvae import AnchorAE
 
+
+def rotmat_to_euler_xyz(R):
+    # R: 3x3 rotation matrix
+    sy = np.sqrt(R[0,0]**2 + R[1,0]**2)
+    singular = sy < 1e-6
+    if not singular:
+        x = np.arctan2(R[2,1], R[2,2])
+        y = np.arctan2(-R[2,0], sy)
+        z = np.arctan2(R[1,0], R[0,0])
+    else:
+        x = np.arctan2(-R[1,2], R[1,1])
+        y = np.arctan2(-R[2,0], sy)
+        z = 0
+    return x,y,z
 
 class ManoHand:
-    def __init__(self, dir_assets=None, use_pca=True, n_comp=30, flat_hand=False, hand_side='right'):
+    def __init__(self, dir_assets=None, use_pca=True, n_comp=12, flat_hand=False, hand_side='right', calibrated=True):
         """
         init mano hand class
         :param dir_assets: mano assets directory: assets/mano_hand/models/MANO_RIGHT.pkl
@@ -54,29 +67,48 @@ class ManoHand:
                               use_pca=use_pca, ncomps=n_comp)
         self.name = 'mano_hand'
 
-        try:
-            f_stats = path.join(path.dirname(__file__), 'stats.npy')
-            self.stats = np.load(f_stats, allow_pickle=True).item()['mano_hand']
-            self.pca = AnchorAE(load_model='pca.pth')
-        except:
-            print('PCA data not available!')
-            self.pca = None
-            self.stats = None
 
         try:
-            calib_eef = yaml.safe_load(open(path.join(path.dirname(__file__), 'calib_eef.yaml'), 'r'))['mano_hand']
-            self.calib_eef = transform_from(
-                matrix_from_euler((calib_eef['rx'], calib_eef['ry'], calib_eef['rz']), 0, 1, 2, True),
-                (calib_eef['tx'], calib_eef['ty'], calib_eef['tz']))
+            if calibrated:
+                calib_eef = yaml.safe_load(open(path.join(path.dirname(__file__), 'calib_eef.yaml'), 'r'))['mano_hand']
+                self.calib_eef = [calib_eef['rx'], calib_eef['ry'], calib_eef['rz'], calib_eef['tx'], calib_eef['ty'], calib_eef['tz']]
+            else:
+                self.calib_eef = [0, 0, 0, 0, 0, 0]
         except:
             print('No calib_eef.yaml loaded!')
-            self.calib_eef = np.eye(4)
+            self.calib_eef = [0, 0, 0, 0, 0, 0]
 
         # rendering
         self.mesh = TriangleMesh()
         self.mesh.setIndices(self.hand.th_faces.detach().numpy().copy().astype(np.int32))
+    
 
-    def pose_to_anchor(self, pose, shape=None, return_vert=False, return_palm_frame=True):
+    
+
+    def save_calib_eef(self, base_pos, base_rot):
+        file_path = path.join(path.dirname(__file__), "calib_eef.yaml")
+
+        # load existing yaml
+        try:
+            with open(file_path, "r") as f:
+                calib = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            calib = {}
+        
+        base_pos = [float(v) for v in base_pos]
+        base_rot = [float(v) for v in base_rot]
+
+        # update only this key
+        calib[self.name] = dict(
+            tx=base_pos[0], ty=base_pos[1], tz=base_pos[2],
+            rx=base_rot[0], ry=base_rot[1], rz=base_rot[2],
+        )
+
+        # write back
+        with open(file_path, "w") as f:
+            yaml.safe_dump(calib, f)
+            
+    def pose_to_anchor(self, pose, shape=None, apply_calib_eef=False):
         """
         convert mano pose to anchor
         :param pose: np.ndarray [48] or [3 + n_comp]
@@ -98,15 +130,14 @@ class ManoHand:
 
         # vertex to anchor
         a = self.vertex_to_anchor(v)
-        # anchor global frame to palm frame
-        if return_vert and return_palm_frame:
-            return self.anchor_transform(a, v)
-        elif return_vert:
-            return a, v
-        elif return_palm_frame:
-            return self.anchor_transform(a)
-        else:
-            return a
+
+        
+        if apply_calib_eef:
+            t = np.array(self.calib_eef[3:6]).reshape(1, 3)  # shape (1,3)
+            a = a + t
+            v = v + t
+        return a, v
+
 
     def pose_to_anchor_absolute(self, pose, shape, tsl):
         """
@@ -212,7 +243,11 @@ class ManoHand:
         else:
             return anchor_
 
-    def anchor_to_pose(self, anchor, niter=4000, lr=1e-3, wd=1e-4, th_loss=0.0001, visual=False):
+    def inverse_kinematic(self,*args, **kwargs):
+         
+        self.pose, self.shape, self.calib_eef =self.anchor_to_pose(*args,**kwargs)
+
+    def anchor_to_pose(self, anchor, niter=100, lr=5e-2, wd=1e-4, th_loss=0.00008, visual=False, floating_base=False, hotstart=True, **kwargs):
         """
         retrieve pose and shape from anchor
         :param anchor: np.ndarray [22x3]
@@ -220,55 +255,114 @@ class ManoHand:
         :param lr: learning rate
         :param wd: weight decay
         :param visual: visualization of the learning
-        :return: pose: numpy.ndarray [48]
+        :return: pose: numpy.ndarray [?]
                  shape: numpy.ndarray [10]
         """
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self.hand.to(device)
+
 
         if visual:
             vis.setWindowTitle("Visualization")
             vp = vis.getViewport()
             vp.camera.dist = 0.5
             vis.setViewport(vp)
+            # Add the target anchors to the visualizer
+            for i, single_anchor in enumerate(anchor):
+                name = "target_anchor_{}".format(i)
+                anc = GeometricPrimitive()
+                anc.setSphere(single_anchor, 0.001)
+                vis.add(name, anc, hide_label=True)
+                vis.setColor(name, *self.colors[i])
+            
         # setting
-        ach_vert = torch.from_numpy(self.ach_vert[:-1]).long()
-        ach_weight = torch.from_numpy(self.ach_weight[:-1]).float()
-        anchor = torch.from_numpy(anchor).float()
+        ach_vert = torch.from_numpy(self.ach_vert[:-1]).long().to(device)
+        ach_weight = torch.from_numpy(self.ach_weight[:-1]).float().to(device)
+        anchor = torch.from_numpy(anchor).float().to(device)
         # parameters
-        rrot = torch.randn((1, 3)) * 1e-3
-        rtsl = anchor.mean(dim=0, keepdim=True)
-        pose = torch.randn(1, self.n_comp if self.use_pca else 45) * 1e-3
-        shape = torch.randn(1, 10) * 1e-3
-        rrot.requires_grad_(True)
-        rtsl.requires_grad_(True)
+        if floating_base:
+            if hasattr(self, '_prev_rtsl') and hotstart:
+                rtsl = self._prev_rtsl.clone().to(device).requires_grad_(True)
+                rrot = self._prev_rrot.clone().to(device).requires_grad_(True)
+
+            else:
+                rrot = torch.randn((1, 3)).to(device) * 1e-3
+                rtsl = anchor.mean(dim=0, keepdim=True).to(device)
+                rrot.requires_grad_(True)
+                rtsl.requires_grad_(True)
+
+        else:
+            base = torch.tensor(self.calib_eef, dtype=torch.float32, device=device)
+            rrot, rtsl = base[:3].unsqueeze(0), base[3:6].unsqueeze(0)  # shape [1,3]        
+        # Warm Start from previous optimization
+        if hasattr(self, "_prev_pose") and hotstart:
+            pose = self._prev_pose.clone().to(device).requires_grad_(True)
+        else:
+            pose = torch.randn(1, self.n_comp if self.use_pca else 45).to(device) * 1e-3
+            # pose is 15*3 = 45 (15 Joints with 3 DoF each) for non-pca
+            # Or just the n_comp for pca
+
+        shape = torch.randn(1, 10).to(device) * 1e-3
+
         pose.requires_grad_(True)
         shape.requires_grad_(True)
         # optim
         optim = torch.optim.AdamW([
-            {"params": [rrot, rtsl],
-             "weight_decay": 0},
-            {"params": [pose, shape],
-             "weight_decay": wd}],
-            lr=lr)
-
+            {"params": [rrot, rtsl], "weight_decay": 0},
+            {"params": [pose], "weight_decay": wd, "lr": lr},
+            {"params": [shape], "weight_decay": wd, "lr": lr * 0.1},
+        ], lr=lr)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optim, factor=0.5, patience=25, verbose=False
+        )
         # iterate
-        # proc_bar = tqdm.tqdm(range(niter))
-        # for _ in proc_bar:
-        for _ in range(niter):
+        proc_bar = tqdm.tqdm(range(niter))
+
+        fingertip_indices = [7, 11, 15, 19]
+        thumb_tip_indices = [3]
+        palm_indices = [20, 21]
+
+        patience = 10
+        best_loss = float('inf')
+        counter = 0
+
+        for _ in proc_bar:
+        # for _ in range(niter):
             optim.zero_grad()
-            vertex = self.hand(torch.cat((rrot, pose), dim=1), shape).verts + rtsl
+            vertex = self.hand(torch.cat((rrot, pose), dim=1), shape).verts + rtsl # This  computes all vertices for the hand
             a = vertex[0, ach_vert[:, 1]] - vertex[0, ach_vert[:, 0]]
             b = vertex[0, ach_vert[:, 2]] - vertex[0, ach_vert[:, 0]]
             anchor_ = a * ach_weight[:, 0:1] + b * ach_weight[:, 1:2] + vertex[0, ach_vert[:, 0]]
-            loss = torch.nn.functional.smooth_l1_loss(anchor_, anchor, reduction='none')
-            loss = loss.mean()
+
+            assert anchor.shape == anchor_.shape
+
+            weights = torch.zeros_like(anchor_)
+            weights[fingertip_indices] = 10.0  # Higher weight for fingertips
+            weights[palm_indices] = 15.0   # Higher weight for palm points
+            weights[thumb_tip_indices] = 5.0  # Higher weight for thumb tip
+
+            lossl1 = torch.nn.functional.smooth_l1_loss(anchor_, anchor, reduction='none') # + 0.0001 * torch.sum(pose ** 2)
+            loss = (lossl1 * weights).mean() + 0.01 * torch.sum(shape ** 2) #+ 0.00001 * torch.sum(pose ** 2)
+            
+            # temporal regularization to smooth the result
+            if hasattr(self, '_prev_rtsl'):
+                rtsl_diff = torch.norm(rtsl - self._prev_rtsl.to(device))
+                rrot_diff = torch.norm(rrot - self._prev_rrot.to(device))
+                rtsl_reg = 0.1 * rtsl_diff
+                rrot_reg = 0.1 * rrot_diff
+                loss = loss + rtsl_reg + rrot_reg
+
             loss.backward()
             optim.step()
-            # proc_bar.set_description(f"loss: {loss.item():.5f}")
-
+            scheduler.step(loss.item())
+            proc_bar.set_description(f"loss: {loss.item():.5f} rtsl: {rtsl.detach().cpu().numpy().flatten()} ")
+            # print(f"uptated rtsl : {rtsl}")
             # rendering
             if visual:
-                a, v = self.pose_to_anchor(torch.cat((rrot, pose), dim=1).detach().numpy().flatten(),
-                                           shape.detach().numpy().flatten(), return_vert=True, return_palm_frame=True)
+                self.hand.to('cpu')
+                self.calib_eef = rrot.detach().cpu().flatten().tolist() + rtsl.detach().cpu().flatten().tolist()
+                a, v = self.pose_to_anchor(torch.cat((rrot.cpu(), pose.cpu()), dim=1).detach().numpy().flatten(),
+                                           shape.cpu().detach().numpy().flatten(), apply_calib_eef=True)
                 self.mesh.setVertices(v)
                 vis.add('robot', self.mesh)
                 vis.hideLabel('robot')
@@ -286,57 +380,34 @@ class ManoHand:
                 vis.setViewport(vp)
                 vis.setColor('robot', 0.7, 0.7, 0.7)
                 vis.show()
-            if loss.item() < th_loss:
+                self.hand.to(device)
+            # if loss.item() < th_loss:
+            #     break
+            if loss.item() < best_loss:
+                best_loss = loss.item()
+                counter = 0
+            else:
+                counter += 1
+            
+            if counter >= patience:
+                print("Stopping early: model on plateau")
                 break
-        return torch.cat((rrot, pose), dim=1)[0].detach().numpy(), shape[0].detach().numpy()
+        
+        self._prev_pose = pose.detach().cpu()
+        self._prev_shape = shape.detach().cpu()
+        self._prev_rtsl = rtsl.detach().cpu()
+        self._prev_rrot = rrot.detach().cpu()
+        self.hand.to('cpu')
 
-    def anchor_to_pose_batch(self, anchor, niter=1000, lr=1e-1, wd=1e-3):
-        """
-        retrieve pose and shape from anchor
-        :param anchor: np.ndarray [b, 22, 3]
-        :param niter: number of iteration
-        :param lr: learning rate
-        :param wd: weight decay
-        :param visual: visualization of the learning
-        :return: pose: numpy.ndarray [b, 48]
-                 shape: numpy.ndarray [b, 10]
-        """
-        # setting
-        ach_vert = torch.from_numpy(self.ach_vert[:-1]).long()
-        ach_weight = torch.from_numpy(self.ach_weight[:-1]).float()
-        anchor = torch.from_numpy(anchor).float()
-        n_b = anchor.shape[0]
-        # parameters
-        rrot = torch.randn((n_b, 3)) * 1e-2
-        rtsl = anchor.mean(dim=1, keepdim=True)
-        pose = torch.randn(n_b, self.n_comp if self.use_pca else 45) * 1e-3
-        shape = torch.randn(n_b, 10) * 1e-2
-        rrot.requires_grad_(True)
-        rtsl.requires_grad_(True)
-        pose.requires_grad_(True)
-        shape.requires_grad_(True)
-        # optim
-        optim = torch.optim.AdamW([
-            {"params": [rrot, rtsl],
-             "weight_decay": 0,
-             "lr": lr},
-            {"params": [pose, shape],
-             "weight_decay": wd,
-             "lr": lr}])
+        base = rrot.detach().cpu().flatten().tolist() + rtsl.detach().cpu().flatten().tolist()
+        return torch.cat((rrot, pose), dim=1)[0].detach().cpu().numpy(), shape[0].detach().cpu().numpy(), base
 
-        # iterate
-        for _ in range(niter):
-            optim.zero_grad()
-            vertex = self.hand(torch.cat((rrot, pose), dim=1), shape).verts + rtsl
-            a = vertex[:, ach_vert[:, 1]] - vertex[:, ach_vert[:, 0]]
-            b = vertex[:, ach_vert[:, 2]] - vertex[:, ach_vert[:, 0]]
-            anchor_ = a * ach_weight[:, 0:1][None] + b * ach_weight[:, 1:2][None] + vertex[:, ach_vert[:, 0]]
-            loss = torch.nn.functional.smooth_l1_loss(anchor_, anchor)
-            loss.backward()
-            optim.step()
-            if loss.item() < 0.00001:
-                break
-        return torch.cat((rrot, pose), dim=1).detach(), shape.detach(), rtsl.detach()
+    def get_pose(self):
+        """
+        get the current mano pose
+        :return: np.ndarray [?]
+        """
+        return self.pose
 
     def joint_to_pose(self, joint, params=None, niter=1000, lr=1e-1, wd=1e-6, visual=False):
         """
@@ -417,31 +488,28 @@ class ManoHand:
         print('ik residual:', loss.item())
         return (rrot, rtsl, pose, shape)
 
-    def anchor_to_pc(self, anchor, n_pc=None):
+    def get_base(self):
         """
-        convert anchor into principal components
-        :param anchor: np.ndarray [22x3]
-        :param n_pc: int number of principal components to use; None = use all
-        :return: np.ndarray [66] principal components
+        get the base transformation from world to palm frame
+        :return: [tx,ty,tz,rx,ry,rz]
         """
-        anchor = (anchor - self.stats['means']) / self.stats['stds']
-        pc = self.pca.transform(anchor.flatten()[None], 'mano_hand')[0]
-        if n_pc is not None:
-            pc[n_pc:] = 0
-        return pc
+        
+        return self.calib_eef
 
-    def pc_to_anchor(self, pc):
+    def get_anchor(self, pose=None, shape=None):
         """
-        convert principal components to anchors
-        :param pc: np.ndarray[66] principal components
-        :return: np.ndarray[22x3] anchors
+        get anchor in world frame
+        :return: np.ndarray [22, 3] anchor
         """
-        pc = np.hstack((pc, np.zeros(self.pca.num_components - pc.shape[0])))
-        anchor = self.pca.inverse_transform(pc[None], 'mano_hand').reshape(-1, 3)
-        anchor = anchor * self.stats['stds'] + self.stats['means']
-        return anchor
+        if pose is None and not hasattr(self, "pose"):
+            raise ValueError("Please provide pose for getting anchor!")
+        if shape is None and not hasattr(self, "shape"):
+            shape = np.zeros(10)
 
-    def vis_model(self, pose=None, shape=None, save=None, cam_t=None, cam_r=[0, -1.57, -1.57], cam_dist=0.6):
+        a, _ = self.pose_to_anchor(pose if pose is not None else self.pose, shape if shape is not None else self.shape, apply_calib_eef=True)
+        return a[:-1]
+
+    def vis_model(self, pose=None, shape=None, save=None, cam_t=None, cam_r=[0, -1.57, -1.57], cam_dist=0.6, target_anchors=None):
         """
         visualize hand and anchor
         :param pose: None or np.ndarray [48] or [3 + n_comp] pose of Mano
@@ -455,13 +523,16 @@ class ManoHand:
         :return: None
         """
         # init
-        if pose is None:
-            pose = np.zeros((3 + self.n_comp) if self.use_pca else 48)
-        if shape is None:
-            shape = np.zeros(10)
+        try:
+            if pose is None:
+                pose = self.pose
+            if shape is None:
+                shape = self.shape
+        except:
+            raise ValueError("Please provide pose and shape for visualization!")    
 
         # anchor and vertex
-        a, v = self.pose_to_anchor(pose, shape, return_vert=True, return_palm_frame=True)
+        a, v = self.pose_to_anchor(pose, shape, apply_calib_eef=True)
         # rendering
         vis.setWindowTitle("Visualization")
         vis.setBackgroundColor(1, 1, 1)
@@ -475,6 +546,15 @@ class ManoHand:
             anc.setSphere(a[i], 0.005)
             vis.add(name, anc, hide_label=True)
             vis.setColor(name, *self.colors[i])
+        
+        if target_anchors is not None:
+            for anchor in target_anchors:
+                name = "target_anchor_{}".format(np.random.randint(0, 1e6))
+                anc = GeometricPrimitive()
+                anc.setSphere(anchor, 0.005)
+                vis.add(name, anc, hide_label=True)
+                vis.setColor(name, 0, 1, 0, 0.5)
+
         vp = vis.getViewport()
         vp.camera.ori = ['z', 'x', 'y']
         vp.camera.dist = cam_dist
@@ -492,6 +572,7 @@ class ManoHand:
             return vis.screenshot('numpy')
         else:
             vis.show()
+            vis.spin(1.0)
             vis.screenshot('Image').save(save)
 
     colors = np.array([[5.03830e-02, 2.98030e-02, 5.27975e-01],
