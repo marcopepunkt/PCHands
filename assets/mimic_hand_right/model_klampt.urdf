@@ -8,5 +8,4 @@ SPDX-License-Identifier: BSD-3-Clause
     <xacro:mimic_model/>
     <xacro:mimic_anchor/>
 
-    <klampt use_vis_geom="1" freeze_root_link="1"/>
 </robot>
