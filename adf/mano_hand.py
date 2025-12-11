@@ -58,6 +58,8 @@ class ManoHand:
         self.ach_vert = np.loadtxt(path.join(dir_assets, "anchor/anchor_vertex.txt"), dtype=int)
         self.ach_weight = np.loadtxt(path.join(dir_assets, "anchor/anchor_weight.txt"))
         
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'    
+
         # Initialize MANO layer
         self.hand = ManoLayer(
             mano_assets_root=dir_assets, 
@@ -67,18 +69,18 @@ class ManoHand:
             rot_mode='axisang',
             use_pca=use_pca, 
             ncomps=n_comp
-        )
+        ).to(self.device) # Push it all to GPU if available
         
         # Model parameters
-        self.dof_tendons = self.n_comp if use_pca else 45
-        self.model_nq = 3 + self.dof_tendons  # 3 for root rotation + pose params
-        self.model_nv = self.dof_tendons
-        
+        self.dof_actuated = self.n_comp if use_pca else 45
+
         # State variables
-        self.pose = np.zeros(self.model_nq)  # [root_rot(3) + pose_params]
+        self.pose = np.zeros(self.dof_actuated)  # [pose_params]
         self.shape = np.zeros(10)
-        self.base_transform = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # [rx, ry, rz, tx, ty, tz]
-        
+        self.rrot = np.array([0.0, 0.0, 0.0])
+        self.rtsl = np.array([0.0, 0.0, 0.0])
+
+
         # Load calibration if available
         self._load_calibration()
         
@@ -96,9 +98,6 @@ class ManoHand:
             print(f"Model: {self.name}, Side: {hand_side}")
             print(f"Use PCA: {use_pca}")
             print(f"n_comp: {n_comp if use_pca else 45}")
-            print(f"DoF (tendons): {self.dof_tendons}")
-            print(f"Config size (nq): {self.model_nq}")
-            print(f"Velocity size (nv): {self.model_nv}")
             print('-------------------------------------------')
     
     def _load_calibration(self):
@@ -109,12 +108,16 @@ class ManoHand:
                 calib = yaml.safe_load(f)
                 if calib and self.name in calib:
                     c = calib[self.name]
-                    self.base_transform = [
+                    self.base_transform_calibrated = [
                         c.get('rx', 0.0), c.get('ry', 0.0), c.get('rz', 0.0),
                         c.get('tx', 0.0), c.get('ty', 0.0), c.get('tz', 0.0)
                     ]
+
+                    self.rrot = np.array(self.base_transform_calibrated[0:3])
+                    self.rtsl = np.array(self.base_transform_calibrated[3:6])
+
                     if self.verbose:
-                        print(f"Loaded calibration: {self.base_transform}")
+                        print(f"Loaded calibration: {self.base_transform_calibrated}")
         except FileNotFoundError:
             if self.verbose:
                 print("No calibration file found, using default")
@@ -136,11 +139,9 @@ class ManoHand:
         print(f"Saving calibration to {file_path}")
                 
         if base_pos is None:
-            assert self.base_transform is not None, "Base transform is not set"
-            assert len(self.base_transform) == 6, "Base transform must have 6 elements"
-            base_pos = self.base_transform[3:6]
+            base_pos = self.rtsl.tolist()
         if base_rot is None:
-            base_rot = self.base_transform[0:3]
+            base_rot = self.rrot.tolist()
 
         base_pos = [float(v) for v in base_pos]
         base_rot = [float(v) for v in base_rot]
@@ -153,16 +154,18 @@ class ManoHand:
         with open(file_path, "w") as f:
             yaml.safe_dump(calib, f)
         
-        self.base_transform = base_rot + base_pos
+        self.base_transform_calibrated = base_rot + base_pos
     
     def reset(self):
         """Reset all joint configurations to initial state"""
-        self.pose = np.zeros(self.model_nq)
+        self.pose = np.zeros(self.dof_actuated)
         self.shape = np.zeros(10)
+        self.rrot = np.array([0.0, 0.0, 0.0])
+        self.rtsl = np.array([0.0, 0.0, 0.0])
     
-    def forward_kinematic(self, q, use_scheme=True, normalized=False):
+    def forward_kinematic(self, q,rrot = None, rtsl = None, use_scheme=True, normalized=False):
         """
-        Compute forward kinematics given joint values
+        Compute forward kinematics given joint values (This loads the pose parameters)
         :param q: Joint values (pose parameters)
         :param use_scheme: Not used for MANO (kept for API consistency)
         :param normalized: If True, input q is normalized (0-1)
@@ -170,23 +173,26 @@ class ManoHand:
         q = np.asarray(q)
         
         # Handle different input sizes
-        if len(q) == self.dof_tendons:
+        if len(q) == self.dof_actuated + 3:
+            
             # Only pose parameters provided, keep current root rotation
             pose_params = q
-            root_rot = self.pose[:3]
-        elif len(q) == self.model_nq:
+            self.rrot = pose_params[:3]
+            pose_params = pose_params[3:]
+            self.rtsl = rtsl if rtsl is not None else self.rtsl
+        elif len(q) == self.dof_actuated:
             # Full configuration provided
-            root_rot = q[:3]
-            pose_params = q[3:]
+            self.rrot = rrot if rrot is not None else self.rrot
+            self.rtsl = rtsl if rtsl is not None else self.rtsl
+            pose_params = q
         else:
-            raise ValueError(f"Expected {self.dof_tendons} or {self.model_nq} values, got {len(q)}")
+            raise ValueError(f"Whats given is fucked")
         
         # Denormalize if needed
         if normalized:
-            pose_params = self.denormalize_joint(pose_params)
-        
-        # Update state
-        self.pose = np.concatenate([root_rot, pose_params])
+            self.pose = self.denormalize_joint(pose_params)
+        else:
+            self.pose = pose_params
     
     def inverse_kinematic(self, pos_anchor, niter=100, lr=1e-2, wd=1e-4, 
                          th_loss=0.0008,min_grad_norm=5e-2, min_param_change=1e-3, floating_base=True, hotstart=True, 
@@ -217,37 +223,32 @@ class ManoHand:
         palm_weight = 10.0
 
 
-
-
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.hand.to(device)
-        
         
         # Prepare targets
         assert pos_anchor.shape == (22, 3), "pos_anchor must be of shape (22, 3)"
-        anchor = torch.from_numpy(np.asarray(pos_anchor)).float().to(device)
-        ach_vert = torch.from_numpy(self.ach_vert[:-1]).long().to(device)
-        ach_weight = torch.from_numpy(self.ach_weight[:-1]).float().to(device)
+        anchor = torch.from_numpy(np.asarray(pos_anchor)).float().to(self.device)
+        ach_vert = torch.from_numpy(self.ach_vert[:-1]).long().to(self.device)
+        ach_weight = torch.from_numpy(self.ach_weight[:-1]).float().to(self.device)
 
         
-        base = torch.tensor(self.base_transform, dtype=torch.float32, device=device)
-        rrot_calib, rtsl_calib = base[:3].unsqueeze(0), base[3:6].unsqueeze(0)
+        base_calib = torch.tensor(self.base_transform_calibrated, dtype=torch.float32, device=self.device)
+        rrot_calib, rtsl_calib = base_calib[:3].unsqueeze(0), base_calib[3:6].unsqueeze(0)
         
         # Initialize pose and shape
         if hasattr(self, "_prev_pose") and hotstart:
-            pose = self._prev_pose.clone().unsqueeze(0).to(device).requires_grad_(True)
-            shape = self._prev_shape.clone().unsqueeze(0).to(device).requires_grad_(True)
+            pose = self._prev_pose.clone().unsqueeze(0).to(self.device).requires_grad_(True)
+            shape = self._prev_shape.clone().unsqueeze(0).to(self.device).requires_grad_(True)
         else:
-            pose = torch.zeros((1, self.dof_tendons), device=device).requires_grad_(True)
-            shape = torch.zeros((1, 10), device=device).requires_grad_(True)
+            pose = torch.zeros((1, self.dof_actuated), device=self.device).requires_grad_(True)
+            shape = torch.zeros((1, 10), device=self.device).requires_grad_(True)
         
         # Setup optimizer
         params = []
         if floating_base:
             # Initialize from previous if hotstart, else from calibration
             if hasattr(self, '_prev_rrot') and hotstart:
-                rrot = self._prev_rrot.clone().unsqueeze(0).to(device)
-                rtsl = self._prev_rtsl.clone().unsqueeze(0).to(device)
+                rrot = self._prev_rrot.clone().unsqueeze(0).to(self.device)
+                rtsl = self._prev_rtsl.clone().unsqueeze(0).to(self.device)
             else:
                 rrot = rrot_calib.clone()
                 rtsl = rtsl_calib.clone()
@@ -309,15 +310,15 @@ class ManoHand:
 
             # Temporal smoothing of pose and shape
             if hasattr(self, '_prev_pose') and temporal_smoothing:
-                pose_reg = pose_reg_weight * torch.nn.functional.mse_loss(pose, self._prev_pose.unsqueeze(0).to(device))
+                pose_reg = pose_reg_weight * torch.nn.functional.mse_loss(pose, self._prev_pose.unsqueeze(0).to(self.device))
                 loss = loss + pose_reg
-                shape_reg = shape_reg_weight * torch.nn.functional.mse_loss(shape, self._prev_shape.unsqueeze(0).to(device))
+                shape_reg = shape_reg_weight * torch.nn.functional.mse_loss(shape, self._prev_shape.unsqueeze(0).to(self.device))
                 loss = loss + shape_reg
 
                 # Temporal smoothing of base
                 if floating_base:
-                    rtsl_reg = base_reg_weight * torch.norm(rtsl - self._prev_rtsl.unsqueeze(0).to(device))
-                    rrot_reg = base_reg_weight * torch.norm(rrot - self._prev_rrot.unsqueeze(0).to(device))
+                    rtsl_reg = base_reg_weight * torch.norm(rtsl - self._prev_rtsl.unsqueeze(0).to(self.device))
+                    rrot_reg = base_reg_weight * torch.norm(rrot - self._prev_rrot.unsqueeze(0).to(self.device))
                     loss = loss + rtsl_reg + rrot_reg
             
             # Calibration regularization
@@ -337,7 +338,7 @@ class ManoHand:
             
             # Visualization during optimization
             if visualize and iteration % 2 == 0:
-                self._visualize_ik_step(rrot, rtsl, pose, shape, pos_anchor)
+                self.vis_model(rrot.squeeze(0), rtsl.squeeze(0), pose.squeeze(0), shape.squeeze(0), pos_anchor)
             
             #Check convergence every N iterations
             if iteration % check_every == 0 and iteration > 0:
@@ -377,33 +378,33 @@ class ManoHand:
         self._prev_rrot = rrot.detach().cpu().squeeze(0)
         self._prev_rtsl = rtsl.detach().cpu().squeeze(0)
         
-        self.hand.to('cpu')
         
         # Update internal state
         self.pose = pose.squeeze(0).detach().cpu().numpy()
         self.shape = shape.squeeze(0).detach().cpu().numpy()
-        self.base_transform = (rrot.detach().cpu().flatten().tolist() + 
-                               rtsl.detach().cpu().flatten().tolist())
         self.rrot = rrot.squeeze(0).detach().cpu().numpy()
         self.rtsl = rtsl.squeeze(0).detach().cpu().numpy()
 
-    def _visualize_ik_step(self, rrot, rtsl, pose, shape, target_anchors):
+    def vis_model(self, rrot = None, rtsl = None, pose = None, shape = None, target_anchors = None, return_image=False):
         """Helper to visualize IK optimization step using MeshCat"""
-    
-        
-        # Move to CPU for visualization
-        self.hand.to('cpu')
-        
-        # Compute current state
-        full_pose = torch.cat((rrot.cpu(), pose.cpu()), dim=1).detach().numpy().flatten()
-        shape_np = shape.cpu().detach().numpy().flatten()
-        temp_base = rrot.detach().cpu().flatten().tolist() + rtsl.detach().cpu().flatten().tolist()
-        
-        anchors, vertices = self._compute_anchors_vertices(full_pose, shape_np, temp_base)
+
+        if rrot is None:
+            rrot = self.rrot
+            # print("Using current rrot")
+        if rtsl is None:
+            # print("Using current rtsl")
+            rtsl = self.rtsl
+        if pose is None:
+            # print("Using current pose")
+            pose = self.pose
+        if shape is None:
+            # print("Using current shape")
+            shape = self.shape
+
+        anchors, vertices = self.get_anchors_vertices(pose, shape, rrot, rtsl)
         
         # Update hand mesh
-    
-        faces = self.hand.th_faces.detach().numpy().astype(np.uint32)
+        faces = self.hand.th_faces.detach().cpu().numpy().astype(np.uint32)
         mesh = g.TriangularMeshGeometry(vertices, faces)
         self.viz["hand"].set_object(mesh, g.MeshLambertMaterial(color=0x505050))
         
@@ -417,36 +418,38 @@ class ManoHand:
                 tf.translation_matrix(anchors[i])
             )
         
+        if target_anchors is not None:
         # Update target anchors
-        for i, anchor in enumerate(target_anchors):
-            self.viz[f"targets/T_{i:02d}"].set_object(
-                g.Box([0.002, 0.002, 0.002]),
-                g.MeshLambertMaterial(color=self._rgb_to_int(self.colors[i]), opacity=0.5, transparent=True)
-            )
-            self.viz[f"targets/T_{i:02d}"].set_transform(
-                tf.translation_matrix(anchor)
-            )
+            for i, anchor in enumerate(target_anchors):
+                self.viz[f"targets/T_{i:02d}"].set_object(
+                    g.Box([0.002, 0.002, 0.002]),
+                    g.MeshLambertMaterial(color=self._rgb_to_int(self.colors[i]), opacity=0.5, transparent=True)
+                )
+                self.viz[f"targets/T_{i:02d}"].set_transform(
+                    tf.translation_matrix(anchor)
+                )
         
-        # Move back to device
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.hand.to(device)
+
+        if return_image:
+            # import cv2
+            return self.viz.get_image()
+
     
-    def _compute_anchors_vertices(self, pose, shape, base_transform=None):
+    def get_anchors_vertices(self, pose, shape, rrot, rtsl = None):
         """
         Compute anchor points and vertices from pose and shape
         :param pose: MANO pose parameters [3 + n_comp]
         :param shape: MANO shape parameters [10]
         :param base_transform: Optional base transform [rx, ry, rz, tx, ty, tz]
         :return: (anchors [22, 3], vertices [778, 3])
-        """
-        if base_transform is None:
-            base_transform = self.base_transform
-        
+        """        
         # Compute vertices
-        pose_tensor = torch.from_numpy(np.asarray(pose)).float().unsqueeze(0)
-        shape_tensor = torch.from_numpy(np.asarray(shape)).float().unsqueeze(0)
-        
-        vertices = self.hand(pose_tensor, shape_tensor).verts[0].numpy()
+        pose_tensor = torch.as_tensor(pose, dtype=torch.float32, device=self.device).unsqueeze(0)
+        rrot_tensor = torch.as_tensor(rrot, dtype=torch.float32, device=self.device).unsqueeze(0)
+        rrot_pose_tensor = torch.cat((rrot_tensor, pose_tensor), dim=1)
+        shape_tensor = torch.as_tensor(shape, dtype=torch.float32, device=self.device).unsqueeze(0)
+
+        vertices = self.hand(rrot_pose_tensor, shape_tensor).verts[0].detach().cpu().numpy()
         
         # Compute anchors from vertices
         a = vertices[self.ach_vert[:, 1]] - vertices[self.ach_vert[:, 0]]
@@ -456,56 +459,25 @@ class ManoHand:
                   vertices[self.ach_vert[:, 0]])
         
         # Apply base transform
-        translation = np.array(base_transform[3:6]).reshape(1, 3)
-        anchors = anchors + translation
-        vertices = vertices + translation
-        
-        return anchors[:-1], vertices  # Return 22 anchors (exclude helper point)
+        if rtsl is None:
+            return anchors, vertices
+        else:
+            rtsl = rtsl.detach().cpu().numpy() if torch.is_tensor(rtsl) else rtsl
+            anchors = anchors + rtsl
+            vertices = vertices + rtsl
+            return anchors, vertices
     
-    def get_anchor(self, pose=None, shape=None):
+    def get_anchor(self):
         """
         Get anchor positions in world frame
         :param pose: Optional pose override
         :param shape: Optional shape override
         :return: np.ndarray [22, 3]
         """
-        if pose is None:
-            pose = self.pose
-        if shape is None:
-            shape = self.shape
-        
-        anchors, _ = self._compute_anchors_vertices(pose, shape, self.base_transform)
+        anchors, _ = self.get_anchors_vertices(self.pose, self.shape, self.rrot, self.rtsl)
         return anchors
     
-    def get_joint(self, all=True, use_scheme=False):
-        """
-        Get current joint values (pose parameters)
-        :param all: Return all parameters (kept for API consistency)
-        :param use_scheme: Not used for MANO (kept for API consistency)
-        :return: Pose parameters
-        """
-        if all:
-            return self.pose.tolist()
-        else:
-            return self.pose[3:].tolist()  # Return only pose params (without root rotation)
     
-    def get_pose(self):
-        """Get the current MANO pose parameters"""
-        return self.pose
-    
-    def get_base(self):
-        """
-        Get base/end-effector frame transform
-        :return: [rx, ry, rz, tx, ty, tz]
-        """
-        return self.base_transform
-    
-    def set_base(self, base):
-        """
-        Set base/end-effector frame transform
-        :param base: [rx, ry, rz, tx, ty, tz]
-        """
-        self.base_transform = [float(x) for x in base]
     
     def denormalize_joint(self, qn):
         """
@@ -519,14 +491,6 @@ class ManoHand:
         upper = 2.0
         return lower + (upper - lower) * qn
     
-    def denormalize_tendons(self, tendons):
-        """
-        Convert normalized tendon values (0-1) to actual joint values
-        :param tendons: Normalized tendon values
-        :return: Denormalized tendon values
-        """
-        return self.denormalize_joint(tendons)
-    
     def get_mano_keypoints(self):
         """
         Get MANO keypoints (anchor points)
@@ -538,66 +502,55 @@ class ManoHand:
          # Convert to tensors
         rrot = torch.from_numpy(self.rrot).float().unsqueeze(0)    # (1, 3) - root rotation
         pose = torch.from_numpy(self.pose).float().unsqueeze(0)    # (1, ncomps) - PCA coefficients
-        shape = torch.from_numpy(self.shape).float().unsqueeze(0)  # (1, 10) - shape parameters
+        shape = torch.from_numpy(self.shape).float().unsqueeze(0).to(self.device)  # (1, 10) - shape parameters
         
         # Concatenate root rotation and PCA coefficients
-        state = torch.cat((rrot, pose), dim=1)  # (1, 3 + ncomps)
+        state = torch.cat((rrot, pose), dim=1).to(self.device)  # (1, 3 + ncomps)
         
         # Forward pass through MANO
         output = self.hand(state, shape)
         joints = output.joints.detach().squeeze(0).cpu().numpy()  # (21, 3)
-    
-        # Simple approach: Offset wrist by a fixed distance along -Z axis
-        wrist = joints[0]
+
+        # Shift the Joints along rtsl 
+        if self.rtsl is not None:
+            joints += self.rtsl[np.newaxis, :]
+
+        # Extract MANO joints (0-indexed)
+        wrist = joints[0]         # Wrist
+        thumb = joints[1:5]       # Thumb (4 joints)
+        index = joints[5:9]       # Index (4 joints)
+        middle = joints[9:13]     # Middle (4 joints)
+        ring = joints[13:17]      # Ring (4 joints)
+        pinky = joints[17:21]     # Pinky (4 joints)
+
+        # Create synthetic forearm point
+        # Option 1: Offset along current wrist direction
         forearm = wrist.copy()
-        forearm[2] -= 0.10  # Move 10cm along negative Z (toward elbow)
+        
+        # Get approximate hand direction from palm normal
+        # Use middle finger base and wrist to determine palm direction
+        palm_direction = wrist - middle[0]  # Vector from middle base to wrist
+        palm_direction = palm_direction / (np.linalg.norm(palm_direction) + 1e-8)
+        
+        # Forearm is ~10cm along palm direction from wrist
+        forearm = wrist + 0.10 * palm_direction
 
-        joints_with_forearm = np.vstack([joints, forearm[np.newaxis, :]])
-        return joints_with_forearm
+        forearm[0] = 0.0  # Set X to zero for better alignment
         
-    def vis_model(self, target_anchors=None, return_image=False):
-        """
-        Visualize the hand model using MeshCat
-        :param target_anchors: Optional target anchor positions to display [22, 3]
-        """
-  
-        # Get current hand state
-        rrot_pose = np.concatenate((self.rrot, self.pose))
+        # Assemble in retargeter order: [forearm, wrist, thumb, index, middle, ring, pinky]
+        joints_retargeter_format = np.vstack([
+            forearm[np.newaxis, :],  # 0: forearm
+            wrist[np.newaxis, :],    # 1: wrist
+            thumb,                    # 2-5: thumb
+            index,                    # 6-9: index
+            middle,                   # 10-13: middle
+            ring,                     # 14-17: ring
+            pinky                     # 18-21: pinky
+        ])
+        
+        return joints_retargeter_format  # Shape: (22, 3)
 
-        anchors, vertices = self._compute_anchors_vertices(
-            rrot_pose, self.shape, self.base_transform
-        )
         
-        # Add hand mesh
-        faces = self.hand.th_faces.detach().numpy().astype(np.uint32)
-        mesh = g.TriangularMeshGeometry(vertices, faces)
-        mesh = g.TriangularMeshGeometry(vertices, faces)
-        self.viz["hand"].set_object(mesh, g.MeshLambertMaterial(color=0x505050))
-        
-        # Add anchors
-        for i in range(22):
-            self.viz[f"anchors/A_{i:02d}"].set_object(
-                g.Sphere(0.005),
-                g.MeshLambertMaterial(color=self._rgb_to_int(self.colors[i]))
-            )
-            self.viz[f"anchors/A_{i:02d}"].set_transform(
-                tf.translation_matrix(anchors[i])
-            )
-        
-        # Add target anchors if provided
-        if target_anchors is not None:
-            for i, anchor in enumerate(target_anchors):
-                self.viz[f"targets/T_{i:02d}"].set_object(
-                    g.Sphere(0.005),
-                    g.MeshLambertMaterial(color=0x00FF00, opacity=0.5, transparent=True)
-                )
-                self.viz[f"targets/T_{i:02d}"].set_transform(
-                    tf.translation_matrix(anchor)
-                )
-        if return_image:
-            # import cv2
-            return self.viz.get_image()
-            # return  cv2.cvtColor(np.array(img), cv2.COLOR_RGBA2BGR)    
         
     def _rgb_to_int(self, rgb_norm):
         """Helper to convert 0-1 float RGB to hex integer"""

@@ -538,6 +538,8 @@ class Manipulator:
         PyTorch-based IK using retargeter
         pos_anchor: (22, 3) array of anchor positions
         """
+
+        print("Starting PyTorch IK with retargeter...")
         if visualize:
             self.vis_model(target_anchors=mano_keypoints) # ATTENTION THESE ARE NOT THE SAME AS ANCHORS
         
