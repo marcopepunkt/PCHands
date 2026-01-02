@@ -32,7 +32,7 @@ import meshcat.transformations as tf
 
 class ManoHand:
     def __init__(self, dir_assets=None, use_pca=True, n_comp=12, flat_hand=False, 
-                 hand_side='right', verbose=True, viz=None, viewer = None):
+                 hand_side='right', verbose=True, viz=None, viewer = None, headless=False):
         """
         Initialize MANO hand model
         :param dir_assets: Path to MANO assets directory
@@ -88,11 +88,13 @@ class ManoHand:
         if viewer is not None:
             self.viz = viewer
         else:
-            self.viz = meshcat.Visualizer()
-            self.viz.open()
-            # Set camera
-            self.viz["/Cameras/default/rotated/<object>"].set_property("zoom", 4.0)
-        
+            if not headless:
+                self.viz = meshcat.Visualizer()
+                self.viz.open()
+                # Set camera
+                self.viz["/Cameras/default/rotated/<object>"].set_property("zoom", 4.0)
+            else:
+                self.viz = None
         if verbose:
             print('-------------------------------------------')
             print(f"Model: {self.name}, Side: {hand_side}")
@@ -194,9 +196,9 @@ class ManoHand:
         else:
             self.pose = pose_params
     
-    def inverse_kinematic(self, pos_anchor, niter=100, lr=1e-2, wd=1e-4, 
-                         th_loss=0.0008,min_grad_norm=5e-2, min_param_change=1e-3, floating_base=True, hotstart=True, 
-                         visualize=False, focus_tip=False, temporal_smoothing=True):
+    def inverse_kinematic(self, pos_anchor, niter=100, lr=8e-2, 
+                         th_loss=0.0008,min_grad_norm=5e-2, min_param_change=1e-3, floating_base=True, hotstart=True,
+                          focus_tip=False, temporal_smoothing=True):
         """
         Numerical inverse kinematics to find pose from anchor positions
         :param pos_anchor: Target anchor positions [22, 3]
@@ -211,9 +213,13 @@ class ManoHand:
         """
 
         # Here are all my hyperparmeters 
-        pose_reg_weight = 2.0
-        shape_reg_weight = 5.0
-        base_reg_weight = 0.5
+        pose_reg_weight = .01
+        shape_reg_weight = 1
+
+        pose_temp_smoothing = .1
+        shape_temp_smoothing = .1
+        base_temp_smoothing = 0.5
+
         calib_reg_weight = 0.1
 
         palm_parallel_weight = 0.01
@@ -255,15 +261,15 @@ class ManoHand:
 
             rrot.requires_grad_(True)
             rtsl.requires_grad_(True)
-            params.append({"params": [rrot, rtsl], "weight_decay": 0, "lr": 0.1 * lr})
+            params.append({"params": [rrot, rtsl], "weight_decay": 0, "lr": 0.001*lr})
         else:
             rrot = rrot_calib.detach()
             rtsl = rtsl_calib.detach()
 
 
         params.extend([
-            {"params": [pose], "weight_decay": wd, "lr": lr},
-            {"params": [shape], "weight_decay": 0, "lr": lr * 0.01},
+            {"params": [pose], "weight_decay": 0, "lr": lr},
+            {"params": [shape], "weight_decay": 0, "lr": lr},
         ])
         
         optimizer = torch.optim.AdamW(params)
@@ -287,7 +293,7 @@ class ManoHand:
         proc_bar = tqdm.tqdm(range(niter)) 
         for iteration in proc_bar:
             optimizer.zero_grad()
-            
+        
             # Forward pass
             vertex = self.hand(torch.cat((rrot, pose), dim=1), shape).verts + rtsl
             a = vertex[0, ach_vert[:, 1]] - vertex[0, ach_vert[:, 0]]
@@ -296,7 +302,7 @@ class ManoHand:
             
             # Weighted Loss between anchors
             loss_huber = torch.nn.functional.huber_loss(anchor_pred, anchor, reduction='none')
-            loss = (loss_huber * weights).mean() + 0.0 * torch.sum(shape ** 2)
+            loss = (loss_huber * weights).mean() + shape_reg_weight * torch.sum(shape ** 2)
             
             # Palm parallelism constraint
             palm_axis_pred = anchor_pred[palm_indices[1]] - anchor_pred[palm_indices[0]]
@@ -307,18 +313,23 @@ class ManoHand:
             loss_palm_parallel = 1.0 - cosine_sim
             loss = loss + palm_parallel_weight * loss_palm_parallel
             
+            # and add pose regularization that penalizes large values outside of -2 to 2
+            pose_reg = pose_reg_weight * torch.mean(torch.clamp(torch.abs(pose) - 2.0, min=0.0) ** 2)
+            loss = loss + pose_reg  
+
+
 
             # Temporal smoothing of pose and shape
             if hasattr(self, '_prev_pose') and temporal_smoothing:
-                pose_reg = pose_reg_weight * torch.nn.functional.mse_loss(pose, self._prev_pose.unsqueeze(0).to(self.device))
+                pose_reg = pose_temp_smoothing * torch.nn.functional.mse_loss(pose, self._prev_pose.unsqueeze(0).to(self.device))
                 loss = loss + pose_reg
-                shape_reg = shape_reg_weight * torch.nn.functional.mse_loss(shape, self._prev_shape.unsqueeze(0).to(self.device))
+                shape_reg = shape_temp_smoothing * torch.nn.functional.mse_loss(shape, self._prev_shape.unsqueeze(0).to(self.device))
                 loss = loss + shape_reg
 
                 # Temporal smoothing of base
                 if floating_base:
-                    rtsl_reg = base_reg_weight * torch.norm(rtsl - self._prev_rtsl.unsqueeze(0).to(self.device))
-                    rrot_reg = base_reg_weight * torch.norm(rrot - self._prev_rrot.unsqueeze(0).to(self.device))
+                    rtsl_reg = base_temp_smoothing * torch.norm(rtsl - self._prev_rtsl.unsqueeze(0).to(self.device))
+                    rrot_reg = base_temp_smoothing * torch.norm(rrot - self._prev_rrot.unsqueeze(0).to(self.device))
                     loss = loss + rtsl_reg + rrot_reg
             
             # Calibration regularization
@@ -337,7 +348,7 @@ class ManoHand:
             # proc_bar.set_description(f"loss: {loss.item():.5f}")
             
             # Visualization during optimization
-            if visualize and iteration % 2 == 0:
+            if self.viz is not None and iteration % 2 == 0:
                 self.vis_model(rrot.squeeze(0), rtsl.squeeze(0), pose.squeeze(0), shape.squeeze(0), pos_anchor)
             
             #Check convergence every N iterations
@@ -371,7 +382,6 @@ class ManoHand:
             # else:
             #     proc_bar.set_description(f"loss: {loss.item():.5f}")
 
-        
         # Store results
         self._prev_pose = pose.detach().cpu().squeeze(0)
         self._prev_shape = shape.detach().cpu().squeeze(0)
@@ -384,6 +394,10 @@ class ManoHand:
         self.shape = shape.squeeze(0).detach().cpu().numpy()
         self.rrot = rrot.squeeze(0).detach().cpu().numpy()
         self.rtsl = rtsl.squeeze(0).detach().cpu().numpy()
+
+        print(f"The resulting pose is : {self.pose}")
+
+        return self.pose, self.shape, self.rrot, self.rtsl
 
     def vis_model(self, rrot = None, rtsl = None, pose = None, shape = None, target_anchors = None, return_image=False):
         """Helper to visualize IK optimization step using MeshCat"""
@@ -532,10 +546,9 @@ class ManoHand:
         palm_direction = wrist - middle[0]  # Vector from middle base to wrist
         palm_direction = palm_direction / (np.linalg.norm(palm_direction) + 1e-8)
         
-        # Forearm is ~10cm along palm direction from wrist
-        forearm = wrist + 0.10 * palm_direction
-
-        forearm[0] = 0.0  # Set X to zero for better alignment
+        # Forearm is ~10cm along palm direction from wrist 
+        forearm = wrist + 0.10 * palm_direction # Ugly and hardcoded but works decently
+        forearm[0] = 0.0  # Set X to zero for better alignment, ugly and hardcoded but works decently # TODO: improve this
         
         # Assemble in retargeter order: [forearm, wrist, thumb, index, middle, ring, pinky]
         joints_retargeter_format = np.vstack([

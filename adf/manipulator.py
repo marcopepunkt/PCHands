@@ -93,21 +93,22 @@ class Manipulator:
         # self.viz.viewer["/Cameras/default/rotated/<object>"].set_property("zoom", 9.0)
 
 
-        self.viz = MeshcatVisualizer(self.model, self.collision_model, self.visual_model)
-        if viewer is not None:
-            # Use provided viewer
-            self.viz.initViewer(viewer=viewer, open=False)
-        else:
-            # Create new viewer
-            self.viz.initViewer(open=True)
-        
-        self.viz.loadViewerModel(rootNodeName=model_name)
-        
-        # Set camera zoom (use viewer directly if provided, otherwise use viz.viewer)
-        if viewer is not None:
-            viewer["/Cameras/default/rotated/<object>"].set_property("zoom", 9.0)
-        else:
-            self.viz.viewer["/Cameras/default/rotated/<object>"].set_property("zoom", 9.0)
+        if not headless:
+            self.viz = MeshcatVisualizer(self.model, self.collision_model, self.visual_model)
+            if viewer is not None:
+                # Use provided viewer
+                self.viz.initViewer(viewer=viewer, open=False)
+            else:
+                # Create new viewer
+                self.viz.initViewer(open=True)
+            
+            self.viz.loadViewerModel(rootNodeName=model_name)
+            
+            # Set camera zoom (use viewer directly if provided, otherwise use viz.viewer)
+            if viewer is not None:
+                viewer["/Cameras/default/rotated/<object>"].set_property("zoom", 9.0)
+            else:
+                self.viz.viewer["/Cameras/default/rotated/<object>"].set_property("zoom", 9.0)
 
 
         # --- Parse URDF for Joint Names Mapping ---
@@ -306,11 +307,9 @@ class Manipulator:
         """
         if not hasattr(self, "mano") and ManoHand:
             self.mano = ManoHand()
-        if self.mano:
-            print("Getting MANO pose for", self.name)
-            self.mano.inverse_kinematic(self.get_anchor())
-            return self.mano.get_pose()
-        return None
+        print("Getting MANO pose for", self.name)
+        pose, shape, rtsl, rrot = self.mano.inverse_kinematic(self.get_anchor())
+        return pose
 
     def mano_to_joints(self, mano_pose):
         if not hasattr(self, "mano") and ManoHand:
@@ -522,7 +521,7 @@ class Manipulator:
             q = pin.integrate(self.model, q, dq * dt)
             q = np.clip(q, self.model.lowerPositionLimit, self.model.upperPositionLimit)
 
-
+        
             self.vis_model(q=q) if visualize else None
             
             proc_bar.set_description(f"Fitting {self.name} loss: {loss:.5f}")
@@ -539,7 +538,7 @@ class Manipulator:
         pos_anchor: (22, 3) array of anchor positions
         """
 
-        print("Starting PyTorch IK with retargeter...")
+        # print("Starting PyTorch IK with retargeter...")
         if visualize:
             self.vis_model(target_anchors=mano_keypoints) # ATTENTION THESE ARE NOT THE SAME AS ANCHORS
         
@@ -558,7 +557,7 @@ class Manipulator:
         joint_angles = [np.deg2rad(ja) for ja in joint_angles]  # Convert to radians if needed
 
       
-        print("Retargeter found joint angles:", joint_angles)
+        # print("Retargeter found joint angles:", joint_angles)
         # Update configuration
         self.forward_kinematic(joint_angles, use_scheme=True, normalized=False)
         
@@ -568,8 +567,8 @@ class Manipulator:
         # Compute final error
         final_anchors = self.get_anchor()
         error = np.linalg.norm(mano_keypoints - final_anchors, axis=1)
-        print(f"PyTorch IK - Mean error: {error.mean()*1000:.3f}mm, "
-              f"Max error: {error.max()*1000:.3f}mm")
+        # print(f"PyTorch IK - Mean error: {error.mean()*1000:.3f}mm, "
+        #       f"Max error: {error.max()*1000:.3f}mm")
         
         return joint_angles
 

@@ -73,7 +73,7 @@ for i in range(len_traj):
     video_a.write(img_manip_a)
 
     print(f"Transferring step {i}...")
-    mano_pose = mano_hand.inverse_kinematic(anchors_a, niter=2000, hotstart=True, floating_base=True, th_loss=0.00007, focus_tip=True, visualize=True, lr = 2e-2, temporal_smoothing = False)
+    mano_pose = mano_hand.inverse_kinematic(anchors_a, niter=2000, hotstart=True, floating_base=True, th_loss=0.00007, focus_tip=True, visualize=False, lr = 2e-2, temporal_smoothing = False)
     img_mano = mano_hand.vis_model(return_image=True)
     # img_mano.save(path+f"temp_mano{i}.png")
 

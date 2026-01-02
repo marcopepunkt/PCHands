@@ -519,7 +519,7 @@ def update_robot():
             mano_hand.inverse_kinematic(
                 anchors, niter=2000, hotstart=False, temporal_smoothing=False, 
                 floating_base=True, th_loss=0.0001, focus_tip=True, 
-                visualize=True, lr=4e-2
+                visualize=True, lr=8e-2
             )
             mano_hand.vis_model()
     return jsonify({'status': 'ok'})
@@ -603,6 +603,6 @@ if __name__ == '__main__':
     mano_hand.vis_model()
     
     try:
-        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+        app.run(host='0.0.0.0', port=4000, debug=False, threaded=True)
     except KeyboardInterrupt:
         signal_handler(signal.SIGINT, None)
