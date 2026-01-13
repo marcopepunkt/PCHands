@@ -58,7 +58,7 @@ class ManoHand:
         self.ach_vert = np.loadtxt(path.join(dir_assets, "anchor/anchor_vertex.txt"), dtype=int)
         self.ach_weight = np.loadtxt(path.join(dir_assets, "anchor/anchor_weight.txt"))
         
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'    
+        self.device = 'cpu'#'cuda' if torch.cuda.is_available() else 'cpu'    
 
         # Initialize MANO layer
         self.hand = ManoLayer(
@@ -198,7 +198,7 @@ class ManoHand:
     
     def inverse_kinematic(self, pos_anchor, niter=100, lr=8e-2, 
                          th_loss=0.0008,min_grad_norm=5e-2, min_param_change=1e-3, floating_base=True, hotstart=True,
-                          focus_tip=False, temporal_smoothing=True):
+                          focus_tip=False, temporal_smoothing=True, verbose=False):
         """
         Numerical inverse kinematics to find pose from anchor positions
         :param pos_anchor: Target anchor positions [22, 3]
@@ -220,7 +220,7 @@ class ManoHand:
         shape_temp_smoothing = .1
         base_temp_smoothing = 0.5
 
-        calib_reg_weight = 0.1
+        calib_reg_weight = 0.01
 
         palm_parallel_weight = 0.01
         anchor_weight = 1.0
@@ -290,7 +290,11 @@ class ManoHand:
         check_every = 5
         prev_params = None
         
-        proc_bar = tqdm.tqdm(range(niter)) 
+        if verbose:
+            proc_bar = tqdm.tqdm(range(niter)) 
+        else:
+            proc_bar = range(niter)
+            
         for iteration in proc_bar:
             optimizer.zero_grad()
         
@@ -365,19 +369,23 @@ class ManoHand:
                 prev_params = current_params.detach().clone()
                 
                 # Update progress bar with convergence info
-                proc_bar.set_description(f"loss: {loss.item():.5f} | grad: {grad_norm:.2e} | Δp: {param_change:.2e}")
+                if verbose:
+                    proc_bar.set_description(f"loss: {loss.item():.5f} | grad: {grad_norm:.2e} | Δp: {param_change:.2e}")
                 
                 # Check stopping criteria
                 if grad_norm < min_grad_norm:
-                    print(f"\nConverged: Vanishing gradients ({grad_norm:.2e})")
+                    if verbose:
+                        print(f"\nConverged: Vanishing gradients ({grad_norm:.2e})")
                     break
                 
                 if param_change < min_param_change:
-                    print(f"\nConverged: Parameters stable ({param_change:.2e})")
+                    if verbose:
+                        print(f"\nConverged: Parameters stable ({param_change:.2e})")
                     break
                 
                 if loss.item() < th_loss:
-                    print(f"\nConverged: Loss threshold ({loss.item():.6f})")
+                    if verbose:
+                        print(f"\nConverged: Loss threshold ({loss.item():.6f})")
                     break
             # else:
             #     proc_bar.set_description(f"loss: {loss.item():.5f}")
@@ -395,7 +403,8 @@ class ManoHand:
         self.rrot = rrot.squeeze(0).detach().cpu().numpy()
         self.rtsl = rtsl.squeeze(0).detach().cpu().numpy()
 
-        print(f"The resulting pose is : {self.pose}")
+        if verbose:
+            print(f"The resulting pose is : {self.pose}")
 
         return self.pose, self.shape, self.rrot, self.rtsl
 
