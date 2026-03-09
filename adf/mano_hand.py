@@ -20,6 +20,7 @@ import os
 import sys
 import yaml
 import tqdm
+import time
 import torch
 import numpy as np
 from os import path
@@ -196,7 +197,7 @@ class ManoHand:
         else:
             self.pose = pose_params
     
-    def inverse_kinematic(self, pos_anchor, niter=100, lr=8e-2, 
+    def inverse_kinematic_anchors(self, pos_anchor, niter=100, lr=8e-2, 
                          th_loss=0.0008,min_grad_norm=5e-2, min_param_change=1e-3, floating_base=True, hotstart=True,
                           focus_tip=False, temporal_smoothing=True, verbose=False):
         """
@@ -204,12 +205,15 @@ class ManoHand:
         :param pos_anchor: Target anchor positions [22, 3]
         :param niter: Number of optimization iterations
         :param lr: Learning rate
-        :param wd: Weight decay
         :param th_loss: Loss threshold for early stopping
+        :param min_grad_norm: Minimum gradient norm for convergence
+        :param min_param_change: Minimum parameter change for convergence
         :param floating_base: Optimize base transform
         :param hotstart: Use previous solution as initialization
-        :param visualize: Visualize optimization process
         :param focus_tip: Focus on fingertip accuracy
+        :param temporal_smoothing: Enable temporal smoothing of parameters
+        :param verbose: Print optimization progress
+        :return: (pose, shape, rrot, rtsl) - MANO parameters
         """
 
         # Here are all my hyperparmeters 
@@ -354,6 +358,7 @@ class ManoHand:
             # Visualization during optimization
             if self.viz is not None and iteration % 2 == 0:
                 self.vis_model(rrot.squeeze(0), rtsl.squeeze(0), pose.squeeze(0), shape.squeeze(0), pos_anchor)
+                time.sleep(0.05)  # Small delay to see optimization steps
             
             #Check convergence every N iterations
             if iteration % check_every == 0 and iteration > 0:
@@ -408,7 +413,288 @@ class ManoHand:
 
         return self.pose, self.shape, self.rrot, self.rtsl
 
-    def vis_model(self, rrot = None, rtsl = None, pose = None, shape = None, target_anchors = None, return_image=False):
+    def inverse_kinematic_manopoints(self, pos_manopoints, niter=1000, lr=8e-2,
+                         th_loss=0.0008, min_grad_norm=5e-3, min_param_change=1e-3, floating_base=False, hotstart=True,
+                          focus_tip=False, temporal_smoothing=False, wrist_centered=True, verbose=True):
+        """
+        Numerical inverse kinematics to find pose from MANO joint positions
+        :param pos_manopoints: Target MANO joint positions [22, 3] in MANO-22 retargeter format:
+                              [0: forearm, 1: wrist, 
+                               2-5: thumb (base to tip), 6-9: index (base to tip), 
+                               10-13: middle (base to tip), 14-17: ring (base to tip), 
+                               18-21: pinky (base to tip)]
+        :param niter: Number of optimization iterations
+        :param lr: Learning rate
+        :param th_loss: Loss threshold for early stopping
+        :param min_grad_norm: Minimum gradient norm for convergence
+        :param min_param_change: Minimum parameter change for convergence
+        :param floating_base: Optimize base transform
+        :param hotstart: Use previous solution as initialization
+        :param focus_tip: Focus on fingertip accuracy
+        :param temporal_smoothing: Enable temporal smoothing of parameters
+        :param wrist_centered: If True, assumes target wrist is the origin and performs loss in wrist-relative frame
+        :param verbose: Print optimization progress
+        :return: (pose, shape, rrot, rtsl) - MANO parameters
+        """
+        # Hyperparameters
+        pose_reg_weight = .001
+        shape_reg_weight = 1
+
+        pose_temp_smoothing = .1
+        shape_temp_smoothing = .1
+        base_temp_smoothing = 0.5
+
+        calib_reg_weight = 0.
+
+        joint_weight = 1.0
+        fingertop_weight = 10.0
+        wrist_weight = 10.0
+
+        # Prepare targets - skip forearm (index 0), use wrist and fingers (indices 1-21)
+        pos_manopoints = np.asarray(pos_manopoints)
+        if pos_manopoints.shape == (66,):  # Flattened input, reshape it
+            pos_manopoints = pos_manopoints.reshape(22, 3)
+        assert pos_manopoints.shape == (22, 3), f"pos_manopoints must be of shape (22, 3), got {pos_manopoints.shape}"
+
+        target_joints_np = np.asarray(pos_manopoints[1:], dtype=np.float32)  # [21, 3]
+        target_wrist_np = target_joints_np[0].copy()
+        if wrist_centered:
+            target_joints_np = target_joints_np - target_wrist_np[np.newaxis, :]
+
+        target_joints = torch.from_numpy(target_joints_np).float().to(self.device)
+        
+        # # Initialize base transform from actual hand orientation
+        # # Extract key points: wrist(1), index base(6), middle base(10), pinky base(18)
+        wrist_pos = torch.from_numpy(target_wrist_np).float().to(self.device)
+        # index_base = torch.from_numpy(np.asarray(pos_manopoints[6])).float().to(self.device)
+        # middle_base = torch.from_numpy(np.asarray(pos_manopoints[10])).float().to(self.device)
+        # pinky_base = torch.from_numpy(np.asarray(pos_manopoints[18])).float().to(self.device)
+        
+        # # Compute palm coordinate frame
+        # # Forward: from wrist toward middle finger base
+        # forward = middle_base - wrist_pos
+        # forward = forward / (torch.norm(forward) + 1e-8)
+        
+        # # Right: from pinky to index (for right hand)
+        # right = index_base - pinky_base
+        # right = right / (torch.norm(right) + 1e-8)
+        
+        # # Up: cross product to get palm normal
+        # up = torch.cross(forward, right)
+        # up = up / (torch.norm(up) + 1e-8)
+        
+        # # Re-orthogonalize right
+        # right = torch.cross(up, forward)
+        # right = right / (torch.norm(right) + 1e-8)
+        
+        # # Build rotation matrix [right, up, forward] as rows
+        # rot_matrix = torch.stack([right, up, forward], dim=0)
+        
+        # # Convert rotation matrix to axis-angle representation
+        # # Using Rodrigues formula in reverse
+        # trace = rot_matrix[0, 0] + rot_matrix[1, 1] + rot_matrix[2, 2]
+        # if trace > 0:
+        #     s = torch.sqrt(trace + 1.0) * 2
+        #     w = 0.25 * s
+        #     x = (rot_matrix[2, 1] - rot_matrix[1, 2]) / s
+        #     y = (rot_matrix[0, 2] - rot_matrix[2, 0]) / s
+        #     z = (rot_matrix[1, 0] - rot_matrix[0, 1]) / s
+        # else:
+        #     if rot_matrix[0, 0] > rot_matrix[1, 1] and rot_matrix[0, 0] > rot_matrix[2, 2]:
+        #         s = torch.sqrt(1.0 + rot_matrix[0, 0] - rot_matrix[1, 1] - rot_matrix[2, 2]) * 2
+        #         w = (rot_matrix[2, 1] - rot_matrix[1, 2]) / s
+        #         x = 0.25 * s
+        #         y = (rot_matrix[0, 1] + rot_matrix[1, 0]) / s
+        #         z = (rot_matrix[0, 2] + rot_matrix[2, 0]) / s
+        #     elif rot_matrix[1, 1] > rot_matrix[2, 2]:
+        #         s = torch.sqrt(1.0 + rot_matrix[1, 1] - rot_matrix[0, 0] - rot_matrix[2, 2]) * 2
+        #         w = (rot_matrix[0, 2] - rot_matrix[2, 0]) / s
+        #         x = (rot_matrix[0, 1] + rot_matrix[1, 0]) / s
+        #         y = 0.25 * s
+        #         z = (rot_matrix[1, 2] + rot_matrix[2, 1]) / s
+        #     else:
+        #         s = torch.sqrt(1.0 + rot_matrix[2, 2] - rot_matrix[0, 0] - rot_matrix[1, 1]) * 2
+        #         w = (rot_matrix[1, 0] - rot_matrix[0, 1]) / s
+        #         x = (rot_matrix[0, 2] + rot_matrix[2, 0]) / s
+        #         y = (rot_matrix[1, 2] + rot_matrix[2, 1]) / s
+        #         z = 0.25 * s
+        
+        # # Quaternion to axis-angle
+        # angle = 2 * torch.acos(torch.clamp(w, -1.0, 1.0))
+        # if torch.abs(angle) < 1e-8:
+        #     rrot_calib = torch.zeros(1, 3, device=self.device)
+        # else:
+        #     axis = torch.stack([x, y, z])
+        #     axis = axis / (torch.norm(axis) + 1e-8)
+        #     rrot_calib = (axis * angle).unsqueeze(0)
+        
+        if wrist_centered:
+            rtsl_calib = torch.zeros((1, 3), device=self.device)
+        else:
+            rtsl_calib = wrist_pos.unsqueeze(0)  # Use actual wrist position for translation
+        
+        # Initialize pose and shape
+        if hasattr(self, "_prev_pose") and hotstart:
+            pose = self._prev_pose.clone().unsqueeze(0).to(self.device).requires_grad_(True)
+        
+            shape = self._prev_shape.clone().unsqueeze(0).to(self.device).requires_grad_(True)
+            
+        else:
+            pose = torch.zeros((1, self.dof_actuated), device=self.device).requires_grad_(True)
+            shape = torch.zeros((1, 10), device=self.device).requires_grad_(True)
+        
+        rrot_calib = torch.tensor([0.0, 0.0, 0.0], device=self.device).unsqueeze(0)  # Start with no rotation
+        # rtsl_calib = torch.tensor([0.0, 0.0, 0.0], device=self.device).unsqueeze(0)  # Start with no translation
+
+        # Setup optimizer
+        params = []
+        if floating_base:
+            # Initialize from previous if hotstart, else from calibration
+            if hasattr(self, '_prev_rrot') and hotstart:
+                rrot = self._prev_rrot.clone().unsqueeze(0).to(self.device)
+                rtsl = self._prev_rtsl.clone().unsqueeze(0).to(self.device)
+            else:
+                rrot = rrot_calib.clone()  # Start with no rotation
+                rtsl = rtsl_calib.clone()  # Start with no translation
+
+            rrot.requires_grad_(True)
+            rtsl.requires_grad_(True)
+            params.append({"params": [rrot, rtsl], "weight_decay": 0, "lr": 0.001*lr})
+        else:
+            rrot = rrot_calib.clone()  # Start with no rotation
+            rtsl = rtsl_calib.clone()  # Start with no translation
+
+        params.extend([
+            {"params": [pose], "weight_decay": 0, "lr": lr},
+            {"params": [shape], "weight_decay": 0, "lr": lr},
+        ])
+        
+        optimizer = torch.optim.AdamW(params)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, factor=0.5, patience=25, verbose=False
+        )
+        
+        # Joint indices in 21-joint format (after removing forearm from MANO-22):
+        # wrist=0, thumb=1-4, index=5-8, middle=9-12, ring=13-16, pinky=17-20
+        wrist_idx = 0
+        fingertip_indices = [4, 8, 12, 16, 20]  # Tips: thumb, index, middle, ring, pinky
+
+        # Loss weights
+        weights = torch.ones_like(target_joints) * joint_weight
+        if focus_tip:
+            weights[fingertip_indices] = fingertop_weight
+            weights[wrist_idx] = wrist_weight
+        
+        # Optimization loop
+        check_every = 5
+        prev_params = None
+        
+        if verbose:
+            proc_bar = tqdm.tqdm(range(niter)) 
+        else:
+            proc_bar = range(niter)
+            
+        for iteration in proc_bar:
+            optimizer.zero_grad()
+        
+            # Forward pass - get MANO joints
+            output = self.hand(torch.cat((rrot, pose), dim=1), shape)
+            joints_pred = output.joints[0] + rtsl  # [21, 3]
+
+            if wrist_centered:
+                joints_pred_loss = joints_pred - joints_pred[wrist_idx:wrist_idx + 1]
+            else:
+                joints_pred_loss = joints_pred
+            
+            # Weighted Loss between joints
+            loss_huber = torch.nn.functional.huber_loss(joints_pred_loss, target_joints, reduction='none')
+            loss = (loss_huber * weights).mean() + shape_reg_weight * torch.sum(shape ** 2)
+            
+            # Pose regularization that penalizes large values outside of -2 to 2
+            pose_reg = pose_reg_weight * torch.mean(torch.clamp(torch.abs(pose) - 2.0, min=0.0) ** 2)
+            loss = loss + pose_reg
+
+            # Temporal smoothing of pose and shape
+            if hasattr(self, '_prev_pose') and temporal_smoothing:
+                pose_reg = pose_temp_smoothing * torch.nn.functional.mse_loss(pose, self._prev_pose.unsqueeze(0).to(self.device))
+                loss = loss + pose_reg
+                shape_reg = shape_temp_smoothing * torch.nn.functional.mse_loss(shape, self._prev_shape.unsqueeze(0).to(self.device))
+                loss = loss + shape_reg
+
+                # Temporal smoothing of base
+                if floating_base:
+                    rtsl_reg = base_temp_smoothing * torch.norm(rtsl - self._prev_rtsl.unsqueeze(0).to(self.device))
+                    rrot_reg = base_temp_smoothing * torch.norm(rrot - self._prev_rrot.unsqueeze(0).to(self.device))
+                    loss = loss + rtsl_reg + rrot_reg
+            
+            # Calibration regularization
+            if floating_base:
+                rrot_reg = calib_reg_weight * torch.norm(rrot_calib - rrot)
+                rtsl_reg = calib_reg_weight * torch.norm(rtsl_calib - rtsl)
+                loss = loss + rrot_reg + rtsl_reg
+
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+            scheduler.step(loss.item())
+            
+            # Visualization during optimization
+            if self.viz is not None and iteration % 2 == 0:
+                self.vis_model(rrot.squeeze(0), rtsl.squeeze(0), pose.squeeze(0), shape.squeeze(0), 
+                             target_manopoints=pos_manopoints)
+                time.sleep(0.05)  # Small delay to see optimization steps
+            
+            # Check convergence every N iterations
+            if iteration % check_every == 0 and iteration > 0:
+                # Compute gradient norm
+                grad_norm = sum(p.grad.norm().item() ** 2 for p in [pose, shape, rrot, rtsl] if p.grad is not None) ** 0.5
+                
+                # Compute parameter change
+                current_params = torch.cat([p.flatten() for p in [pose, shape, rrot, rtsl]])
+                if prev_params is not None:
+                    param_change = torch.norm(current_params - prev_params).item()
+                else:
+                    param_change = float('inf')
+                prev_params = current_params.detach().clone()
+                
+                # Update progress bar with convergence info
+                if verbose:
+                    proc_bar.set_description(f"loss: {loss.item():.5f} | grad: {grad_norm:.2e} | Δp: {param_change:.2e}")
+                
+                # Check stopping criteria
+                if grad_norm < min_grad_norm:
+                    if verbose:
+                        print(f"\nConverged: Vanishing gradients ({grad_norm:.2e})")
+                    break
+                
+                if param_change < min_param_change:
+                    if verbose:
+                        print(f"\nConverged: Parameters stable ({param_change:.2e})")
+                    break
+                
+                if loss.item() < th_loss:
+                    if verbose:
+                        print(f"\nConverged: Loss threshold ({loss.item():.6f})")
+                    break
+
+        # Store results
+        self._prev_pose = pose.detach().cpu().squeeze(0)
+        self._prev_shape = shape.detach().cpu().squeeze(0)
+        self._prev_rrot = rrot.detach().cpu().squeeze(0)
+        self._prev_rtsl = rtsl.detach().cpu().squeeze(0)
+        
+        # Update internal state
+        self.pose = pose.squeeze(0).detach().cpu().numpy()
+        self.shape = shape.squeeze(0).detach().cpu().numpy()
+        self.rrot = rrot.squeeze(0).detach().cpu().numpy()
+        self.rtsl = rtsl.squeeze(0).detach().cpu().numpy()
+
+        if verbose:
+            print(f"The resulting pose is : {self.pose}")
+
+        return self.pose, self.shape, self.rrot, self.rtsl
+
+    def vis_model(self, rrot = None, rtsl = None, pose = None, shape = None, target_anchors = None, target_manopoints = None, return_image=False):
         """Helper to visualize IK optimization step using MeshCat"""
 
         if rrot is None:
@@ -450,6 +736,21 @@ class ManoHand:
                 )
                 self.viz[f"targets/T_{i:02d}"].set_transform(
                     tf.translation_matrix(anchor)
+                )
+
+        if target_manopoints is not None:
+            target_manopoints = np.asarray(target_manopoints)
+            if target_manopoints.shape == (66,):
+                target_manopoints = target_manopoints.reshape(22, 3)
+            assert target_manopoints.shape == (22, 3), f"target_manopoints must be (22, 3), got {target_manopoints.shape}"
+
+            for i, point in enumerate(target_manopoints):
+                self.viz[f"targets_mano/M_{i:02d}"].set_object(
+                    g.Sphere(0.003),
+                    g.MeshLambertMaterial(color=0x00FF00, opacity=0.8, transparent=True)
+                )
+                self.viz[f"targets_mano/M_{i:02d}"].set_transform(
+                    tf.translation_matrix(point)
                 )
         
 
@@ -630,36 +931,76 @@ if __name__ == "__main__":
     # Example usage
     print("Initializing MANO Hand...")
     mano = ManoHand(use_pca=True, n_comp=12, verbose=True)
+    mano.reset()
     
     # Random pose test
-    print("\nTesting forward kinematics with random pose...")
-    random_pose = np.random.randn(mano.dof_tendons) * 0.5
-    mano.forward_kinematic(random_pose)
+    # print("\nTesting forward kinematics with random pose...")
+    # random_pose = np.random.randn(12) * 0.5
+    # mano.forward_kinematic(random_pose)
     
-    # Visualize initial pose
-    print("Visualizing initial pose...")
+    # # Visualize initial pose
+    # print("Visualizing initial pose...")
+    # mano.vis_model()
+    
+    # # Test inverse kinematics
+    # print("\nTesting inverse kinematics...")
+    # target_mano_keypoints = mano.get_mano_keypoints()
+    # print("Visualizing MANO keypoint targets...")
+    # mano.vis_model(target_manopoints=target_mano_keypoints)
+    # # Perturb targets slightly
+    # # target_mano_keypoints += np.random.randn(*target_mano_keypoints.shape) * 0.001
+    
+    
+    # print("Running IK optimization in 10 seconds...")
+    # time.sleep(5)  # Wait before starting optimization to view initial state
+    # mano.reset()  # Reset to default pose before IK
+
+
     mano.vis_model()
+    # time.sleep(2)  # Wait to view target keypoints before optimization
+
+    target_mano_keypoints = np.array([
+        [ 0.,          0.,         -0.09      ],
+        [ 0.,          0.,          0.        ],
+        [-0.01949062, -0.00941284,  0.01627053],
+        [-0.05942997, -0.03465216,  0.0296706 ],
+        [-0.08598454, -0.04365316,  0.02295506],
+        [-0.10984702, -0.05040416,  0.0131325 ],
+        [-0.08437505, -0.00145769,  0.02750516],
+        [-0.12110482, -0.01388912,  0.02527022],
+        [-0.13432692, -0.03187465,  0.02315342],
+        [-0.14218608, -0.05063087,  0.02111305],
+        [-0.08303285,  0.00311293,  0.0043393 ],
+        [-0.12272803, -0.01428164, -0.00041428],
+        [-0.12504712, -0.04115006, -0.00117505],
+        [-0.11099223, -0.05695527,  0.00070275],
+        [-0.08018334,  0.00145372, -0.01510685],
+        [-0.11467998, -0.01404116, -0.01856331],
+        [-0.11460691, -0.03942096, -0.01805448],
+        [-0.09862249, -0.0518352,  -0.01635602],
+        [-0.07046202, -0.00276888, -0.03168281],
+        [-0.09798802, -0.01585541, -0.03459984],
+        [-0.10098015, -0.03340237, -0.03324441],
+        [-0.08861113, -0.04668252, -0.02994843],
+    ])
+
+    mano.vis_model(target_manopoints=target_mano_keypoints)
+    time.sleep(5)  # Wait to view target keypoints before optimization
+
+    mano.inverse_kinematic_manopoints(target_mano_keypoints, niter=1000, floating_base=True)
     
-    # Test inverse kinematics
-    print("\nTesting inverse kinematics...")
-    target_anchors = mano.get_anchor()
-    # Perturb targets slightly
-    target_anchors += np.random.randn(*target_anchors.shape) * 0.001
+
+    # print("Visualizing IK result...")
+    # mano.vis_model(target_mano_keypoints=target_mano_keypoints)
     
-    print("Running IK optimization...")
-    mano.inverse_kinematic(target_anchors, niter=100, visual=True)
-    
-    print("Visualizing IK result...")
-    mano.vis_model(target_anchors=target_anchors)
-    
-    # Animate random poses
-    print("\nAnimating random poses (5 iterations)...")
-    for i in range(5):
-        print(f"Iteration {i+1}/5")
-        random_pose = np.random.randn(mano.dof_tendons)
-        mano.forward_kinematic(random_pose)
-        mano.vis_model()
-        time.sleep(3)
+    # # Animate random poses
+    # print("\nAnimating random poses (5 iterations)...")
+    # for i in range(5):
+    #     print(f"Iteration {i+1}/5")
+    #     random_pose = np.random.randn(mano.dof_tendons)
+    #     mano.forward_kinematic(random_pose)
+    #     mano.vis_model()
+    #     time.sleep(3)
     
     print("\nDone! Keep the window open to view the final pose.")
     hold()
